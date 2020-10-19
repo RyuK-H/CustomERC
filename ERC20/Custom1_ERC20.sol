@@ -315,6 +315,9 @@ contract PausableToken is StandardToken, Pausable, BlackList {
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
+        require(blackList[_from] != true);
+        require(blackList[_to] != true);
+
         return super.transferFrom(_from, _to, _value);
     }
 
