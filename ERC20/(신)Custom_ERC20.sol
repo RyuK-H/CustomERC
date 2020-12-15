@@ -190,6 +190,7 @@ contract StandardToken is ERC20, BasicToken {
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
     
         emit Transfer(_from, _to, _value);
+        emit Approval(from, msg.sender, _allowed[from][msg.sender]);
     
         return true;
     }
@@ -218,9 +219,9 @@ contract StandardToken is ERC20, BasicToken {
         uint256 oldValue = allowed[msg.sender][_spender];
     
         if (_subtractedValue > oldValue) {
-        allowed[msg.sender][_spender] = 0;
+            allowed[msg.sender][_spender] = 0;
         } else {
-        allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
+            allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
         }
     
         emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
