@@ -6,7 +6,6 @@ pragma solidity ^0.4.24;
 // https://github.com/OpenZeppelin/zeppelin-solidity/blob/master/contracts/math/SafeMath.sol
 // ----------------------------------------------------------------------------
 library SafeMath {
-    
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
         if (a == 0) {
             return 0;
@@ -86,7 +85,6 @@ contract BasicToken is ERC20Basic {
 // @title Ownable
 // ----------------------------------------------------------------------------
 contract Ownable {
-
     address public owner;
     address public operator;
 
@@ -118,7 +116,6 @@ contract Ownable {
 // @dev Base contract which allows children to implement an emergency stop mechanism.
 // ----------------------------------------------------------------------------
 contract BlackList is Ownable {
-
     event Lock(address indexed LockedAddress);
     event Unlock(address indexed UnLockedAddress);
 
@@ -177,7 +174,6 @@ contract Pausable is Ownable {
 // https://github.com/ethereum/EIPs/issues/20
 // ----------------------------------------------------------------------------
 contract StandardToken is ERC20, BasicToken {
-  
     mapping (address => mapping (address => uint256)) internal allowed;
 
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
@@ -233,7 +229,6 @@ contract StandardToken is ERC20, BasicToken {
 // @dev Only Admin
 // ----------------------------------------------------------------------------
 contract MultiTransferToken is StandardToken, Ownable {
-
     function MultiTransfer(address[] _to, uint256[] _amount) onlyOwner public returns (bool) {
         require(_to.length == _amount.length);
 
@@ -263,7 +258,6 @@ contract MultiTransferToken is StandardToken, Ownable {
 // @dev Token that can be irreversibly burned (destroyed).
 // ----------------------------------------------------------------------------
 contract BurnableToken is StandardToken, Ownable {
-
     event BurnAdminAmount(address indexed burner, uint256 value);
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
@@ -310,7 +304,6 @@ contract MintableToken is StandardToken, Ownable {
 // @dev StandardToken modified with pausable transfers.
 // ----------------------------------------------------------------------------
 contract PausableToken is StandardToken, Pausable, BlackList {
-
     function transfer(address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
         return super.transfer(_to, _value);
     }
