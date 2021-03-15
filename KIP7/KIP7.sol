@@ -18,7 +18,7 @@ interface IKIP13 {
  * the optional functions; to access them see `KIP7Metadata`.
  * See http://kips.klaytn.com/KIPs/kip-7-fungible_token
  */
-contract IKIP7 is IKIP13{
+contract IKIP7 is IKIP13 {
     function totalSupply() public view returns (uint256);
     function balanceOf(address account) public view returns (uint256);
     function decimals() public view returns (uint8);

@@ -1,8 +1,8 @@
 pragma solidity ^0.4.24;
 
 /**
- * @Name SafeMath
- * @Desc Math operations with safety checks that throw on error
+ * @dev SafeMath
+ * Math operations with safety checks that throw on error
  * https://github.com/OpenZeppelin/zeppelin-solidity/blob/master/contracts/math/SafeMath.sol
  */
 library SafeMath {
@@ -43,11 +43,34 @@ interface IKIP13 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 /**
+ * @dev Implementation of the `IKIP13` interface.
+ *
+ * Contracts may inherit from this and call `_registerInterface` to declare
+ * their support of an interface.
+ */
+contract KIP13 is IKIP13 {
+    bytes4 private constant _INTERFACE_ID_KIP13 = 0x01ffc9a7;
+    mapping(bytes4 => bool) private _supportedInterfaces;
+
+    constructor () internal {
+        _registerInterface(_INTERFACE_ID_KIP13);
+    }
+
+    function supportsInterface(bytes4 interfaceId) external view returns (bool) {
+        return _supportedInterfaces[interfaceId];
+    }
+
+    function _registerInterface(bytes4 interfaceId) internal {
+        require(interfaceId != 0xffffffff, "KIP13: invalid interface id");
+        _supportedInterfaces[interfaceId] = true;
+    }
+}
+/**
  * @dev Interface of the KIP7 standard as defined in the KIP. Does not include
  * the optional functions; to access them see `KIP7Metadata`.
  * See http://kips.klaytn.com/KIPs/kip-7-fungible_token
  */
-contract IKIP7 is IKIP13{
+contract IKIP7 is IKIP13 {
     function totalSupply() public view returns (uint256);
     function balanceOf(address account) public view returns (uint256);
     function decimals() public view returns (uint8);
@@ -64,62 +87,125 @@ contract IKIP7 is IKIP13{
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-// ----------------------------------------------------------------------------
-// @title ERC20Basic
-// @dev Simpler version of ERC20 interface
-// See https://github.com/ethereum/EIPs/issues/179
-// ----------------------------------------------------------------------------
-contract ERC20Basic {
-    function totalSupply() public view returns (uint256);
-    function balanceOf(address who) public view returns (uint256);
-    function transfer(address to, uint256 value) public returns (bool);
-    event Transfer(address indexed from, address indexed to, uint256 value);
+contract IKIP7Receiver {
+    function onKIP7Received(address _operator, address _from, uint256 _amount, bytes memory _data) public returns (bytes4);
 }
 // ----------------------------------------------------------------------------
-// @title ERC20 interface
-// @dev See https://github.com/ethereum/EIPs/issues/20
+// @title KIP7
 // ----------------------------------------------------------------------------
-contract ERC20 is ERC20Basic {
-    function allowance(address owner, address spender) public view returns (uint256);
-    function transferFrom(address from, address to, uint256 value) public returns (bool);
-    function approve(address spender, uint256 value) public returns (bool); 
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-}
-// ----------------------------------------------------------------------------
-// @title Basic token
-// @dev Basic version of StandardToken, with no allowances.
-// ----------------------------------------------------------------------------
-contract BasicToken is ERC20Basic {
+contract KIP7 is KIP13, IKIP7 {
     using SafeMath for uint256;
+    
+    uint256 internal totalSupply_;
+    uint8 private _decimals = 18;
+    
+    mapping(address => uint256) internal balances;
+    mapping (address => mapping (address => uint256)) internal allowed;
 
-    mapping(address => uint256) balances;
-
-    uint256 totalSupply_;
+    bytes4 private constant _KIP7_RECEIVED = 0x9d188c22;
+    bytes4 private constant _INTERFACE_ID_KIP7 = 0x65787371;
 
     function totalSupply() public view returns (uint256) {
         return totalSupply_;
     }
 
-    function transfer(address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0));
-        require(_value <= balances[msg.sender]);
+    function balanceOf(address account) public view returns (uint256) {
+        return balances[account];
+    }
 
-        balances[msg.sender] = balances[msg.sender].sub(_value);
-        balances[_to] = balances[_to].add(_value);
-    
-        emit Transfer(msg.sender, _to, _value);
+    function decimals() public view returns (uint8) {
+        return _decimals;
+    }
+
+    function transfer(address recipient, uint256 amount) public returns (bool) {
+        _transfer(msg.sender, recipient, amount);
         return true;
     }
 
-    function balanceOf(address _owner) public view returns (uint256) {
-        return balances[_owner];
+    function allowance(address owner, address spender) public view returns (uint256) {
+        return allowed[owner][spender];
+    }
+
+    function approve(address spender, uint256 amount) public returns (bool) {
+        _approve(msg.sender, spender, amount);
+        return true;
+    }
+
+    function increaseApproval(address spender, uint256 amount) public returns (bool) {
+        _approve(msg.sender, spender, allowed[msg.sender][spender].add(amount));
+        return true;
+    }
+
+    function decreaseApproval(address spender, uint256 amount) public returns (bool) {
+        if (amount >= allowed[msg.sender][spender]) {
+            amount = 0;
+        } else {
+            amount = allowed[msg.sender][spender].sub(amount);
+        }
+
+        _approve(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
+        _transfer(sender, recipient, amount);
+        _approve(sender, msg.sender, amount);
+        return true;
+    }
+    
+    function safeTransfer(address recipient, uint256 amount) public {
+        safeTransfer(recipient, amount, "");
+    }
+
+    function safeTransfer(address recipient, uint256 amount, bytes memory data) public {
+        transfer(recipient, amount);
+        require(_checkOnKIP7Received(msg.sender, recipient, amount, data), "KIP7: transfer to non KIP7Receiver implementer");
+    }
+    
+    function safeTransferFrom(address sender, address recipient, uint256 amount) public {
+        safeTransferFrom(sender, recipient, amount, "");
+    }
+
+    function safeTransferFrom(address sender, address recipient, uint256 amount, bytes memory data) public {
+        transferFrom(sender, recipient, amount);
+        require(_checkOnKIP7Received(sender, recipient, amount, data), "KIP7: transfer to non KIP7Receiver implementer");
+    }
+
+    function _approve(address owner, address spender, uint256 amount) internal {
+        require(owner != address(0), "KIP7: approve from the zero address");
+        require(spender != address(0), "KIP7: approve to the zero address");
+
+        allowed[owner][spender] = amount;
+        emit Approval(owner, spender, amount);
+    }
+
+    function _transfer(address sender, address recipient, uint256 amount) internal {
+        require(sender != address(0), "KIP7: transfer from the zero address");
+        require(recipient != address(0), "KIP7: transfer to the zero address");
+
+        balances[sender] = balances[sender].sub(amount);
+        balances[recipient] = balances[recipient].add(amount);
+        emit Transfer(sender, recipient, amount);
+    }
+
+    function isContract(address account) internal view returns (bool) {
+        uint256 size;
+        assembly { size := extcodesize(account) }
+        return size > 0;
+    }
+
+    function _checkOnKIP7Received(address sender, address recipient, uint256 amount, bytes memory _data) internal returns (bool) {
+        if (!isContract(recipient)) {
+            return true;
+        }
+        bytes4 retval = IKIP7Receiver(recipient).onKIP7Received(msg.sender, sender, amount, _data);
+        return (retval == _KIP7_RECEIVED);
     }
 }
 // ----------------------------------------------------------------------------
 // @title Ownable
 // ----------------------------------------------------------------------------
 contract Ownable {
-
     address public owner;
     address public operator;
 
@@ -139,7 +225,7 @@ contract Ownable {
         emit OwnershipTransferred(owner, _newOwner);
         owner = _newOwner;
     }
-  
+
     function transferOperator(address _newOperator) external onlyOwner {
         require(_newOperator != address(0));
         emit OperatorTransferred(operator, _newOperator);
@@ -148,42 +234,33 @@ contract Ownable {
 }
 // ----------------------------------------------------------------------------
 // @title BlackList
-// @dev Base contract which allows children to implement an emergency stop mechanism.
 // ----------------------------------------------------------------------------
 contract BlackList is Ownable {
-
-    event Lock(address indexed LockedAddress);
-    event Unlock(address indexed UnLockedAddress);
+    event Lock(address indexed _lockAddress);
+    event Unlock(address indexed _unlockAddress);
 
     mapping( address => bool ) public blackList;
 
-    modifier CheckBlackList { require(blackList[msg.sender] != true); _; }
+    modifier CheckBlackList() { require(blackList[msg.sender] != true); _; }
 
-    function SetLockAddress(address _lockAddress) external onlyOwnerOrOperator returns (bool) {
+    function SetLockAddress(address _lockAddress) external onlyOwnerOrOperator {
         require(_lockAddress != address(0));
         require(_lockAddress != owner);
         require(blackList[_lockAddress] != true);
         
         blackList[_lockAddress] = true;
-        
         emit Lock(_lockAddress);
-
-        return true;
     }
 
-    function UnLockAddress(address _unlockAddress) external onlyOwner returns (bool) {
+    function UnLockAddress(address _unlockAddress) external onlyOwner {
         require(blackList[_unlockAddress] != false);
         
         blackList[_unlockAddress] = false;
-        
         emit Unlock(_unlockAddress);
-
-        return true;
     }
 }
 // ----------------------------------------------------------------------------
 // @title Pausable
-// @dev Base contract which allows children to implement an emergency stop mechanism.
 // ----------------------------------------------------------------------------
 contract Pausable is Ownable {
     event Pause();
@@ -205,68 +282,10 @@ contract Pausable is Ownable {
     }
 }
 // ----------------------------------------------------------------------------
-// @title Standard ERC20 token
-// @dev Implementation of the basic standard token.
-// https://github.com/ethereum/EIPs/issues/20
-// ----------------------------------------------------------------------------
-contract StandardToken is ERC20, BasicToken {
-  
-    mapping (address => mapping (address => uint256)) internal allowed;
-
-    function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
-        require(_to != address(0));
-        require(_value <= balances[_from]);
-        require(_value <= allowed[_from][msg.sender]);
-
-        balances[_from] = balances[_from].sub(_value);
-        balances[_to] = balances[_to].add(_value);
-        allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
-    
-        emit Transfer(_from, _to, _value);
-        emit Approval(_from, msg.sender, allowed[_from][msg.sender]);
-    
-        return true;
-    }
-
-    function approve(address _spender, uint256 _value) public returns (bool) {
-        allowed[msg.sender][_spender] = _value;
-    
-        emit Approval(msg.sender, _spender, _value);
-    
-        return true;
-    }
-
-    function allowance(address _owner, address _spender) public view returns (uint256) {
-        return allowed[_owner][_spender];
-    }
-
-    function increaseApproval(address _spender, uint256 _addedValue) public returns (bool) {
-        allowed[msg.sender][_spender] = (allowed[msg.sender][_spender].add(_addedValue));
-    
-        emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
-    
-        return true;
-    }
-
-    function decreaseApproval(address _spender, uint256 _subtractedValue) public returns (bool) {
-        uint256 oldValue = allowed[msg.sender][_spender];
-    
-        if (_subtractedValue > oldValue) {
-            allowed[msg.sender][_spender] = 0;
-        } else {
-            allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
-        }
-    
-        emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
-        return true;
-    }
-}
-// ----------------------------------------------------------------------------
 // @title MultiTransfer Token
 // @dev Only Admin
 // ----------------------------------------------------------------------------
-contract MultiTransferToken is StandardToken, Ownable {
-
+contract MultiTransferToken is KIP7, Ownable {
     function MultiTransfer(address[] _to, uint256[] _amount) onlyOwner public returns (bool) {
         require(_to.length == _amount.length);
 
@@ -275,19 +294,15 @@ contract MultiTransferToken is StandardToken, Ownable {
     
         for (ui = 0; ui < _to.length; ui++) {
             require(_to[ui] != address(0));
-
             amountSum = amountSum.add(_amount[ui]);
         }
 
         require(amountSum <= balances[msg.sender]);
-
-        for (ui = 0; ui < _to.length; ui++) {
-            balances[msg.sender] = balances[msg.sender].sub(_amount[ui]);
-            balances[_to[ui]] = balances[_to[ui]].add(_amount[ui]);
         
-            emit Transfer(msg.sender, _to[ui], _amount[ui]);
+        for (ui = 0; ui < _to.length; ui++) {
+            transfer(_to[ui], _amount[ui]);
         }
-    
+        
         return true;
     }
 }
@@ -295,8 +310,7 @@ contract MultiTransferToken is StandardToken, Ownable {
 // @title Burnable Token
 // @dev Token that can be irreversibly burned (destroyed).
 // ----------------------------------------------------------------------------
-contract BurnableToken is StandardToken, Ownable {
-
+contract BurnableToken is KIP7, Ownable {
     event BurnAdminAmount(address indexed burner, uint256 value);
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
@@ -314,13 +328,19 @@ contract BurnableToken is StandardToken, Ownable {
 // @dev Simple ERC20 Token example, with mintable token creation
 // Based on code by TokenMarketNet: https://github.com/TokenMarketNet/ico/blob/master/contracts/MintableToken.sol
 // ----------------------------------------------------------------------------
-contract MintableToken is StandardToken, Ownable {
+contract MintableToken is KIP7, Ownable {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
+    event MintReStart();
 
-    bool public mintingFinished = false;
+    bool public _mintingFinished = false;
 
-    modifier canMint() { require(!mintingFinished); _; }
+    modifier canMint() { require(!_mintingFinished); _; }
+    modifier cantMint() { require(_mintingFinished); _; }
+
+    function mintingFinished() public view returns (bool) {
+        return _mintingFinished;
+    }
 
     function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
         totalSupply_ = totalSupply_.add(_amount);
@@ -333,8 +353,14 @@ contract MintableToken is StandardToken, Ownable {
     }
 
     function finishMinting() onlyOwner canMint public returns (bool) {
-        mintingFinished = true;
+        _mintingFinished = true;
         emit MintFinished();
+        return true;
+    }
+
+    function reStartMinting() onlyOwner cantMint public returns (bool) {
+        _mintingFinished = false;
+        emit MintReStart();
         return true;
     }
 }
@@ -342,38 +368,58 @@ contract MintableToken is StandardToken, Ownable {
 // @title Pausable token
 // @dev StandardToken modified with pausable transfers.
 // ----------------------------------------------------------------------------
-contract PausableToken is StandardToken, Pausable, BlackList {
-
-    function transfer(address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
-        return super.transfer(_to, _value);
+contract PausableToken is KIP7, Pausable, BlackList {
+    function transfer(address recipient, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
+        return super.transfer(recipient, amount);
     }
 
-    function transferFrom(address _from, address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
-        require(blackList[_from] != true);
-        require(blackList[_to] != true);
-
-        return super.transferFrom(_from, _to, _value);
+    function approve(address spender, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
+        return super.approve(spender, amount);
     }
 
-    function approve(address _spender, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
-        return super.approve(_spender, _value);
+    function increaseApproval(address spender, uint amount) public whenNotPaused CheckBlackList returns (bool) {
+        return super.increaseApproval(spender, amount);
     }
 
-    function increaseApproval(address _spender, uint _addedValue) public whenNotPaused CheckBlackList returns (bool success) {
-        return super.increaseApproval(_spender, _addedValue);
+    function decreaseApproval(address spender, uint amount) public whenNotPaused CheckBlackList returns (bool) {
+        return super.decreaseApproval(spender, amount);
     }
 
-    function decreaseApproval(address _spender, uint _subtractedValue) public whenNotPaused CheckBlackList returns (bool success) {
-        return super.decreaseApproval(_spender, _subtractedValue);
+    function transferFrom(address sender, address recipient, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
+        require(blackList[sender] != true);
+        require(blackList[recipient] != true);
+
+        return super.transferFrom(sender, recipient, amount);
+    }
+
+    function safeTransfer(address recipient, uint256 amount) public whenNotPaused CheckBlackList {
+        return super.safeTransfer(recipient, amount);
+    }
+
+    function safeTransfer(address recipient, uint256 amount, bytes memory data) public whenNotPaused CheckBlackList {
+        return super.safeTransfer(recipient, amount, data);
+    }
+
+    function safeTransferFrom(address sender, address recipient, uint256 amount) public {
+        return super.safeTransferFrom(sender, recipient, amount);
+    }
+
+    function safeTransferFrom(address sender, address recipient, uint256 amount, bytes memory data) public {
+        return super.safeTransferFrom(sender, recipient, amount, data);
     }
 }
 // ----------------------------------------------------------------------------
-// @Project RyuCoin (RC)
-// @Creator Johnson Ryu (BlockSmith Developer)
-// @Source Code Verification ()
+// @Project FitFunsGames (FFG)
 // ----------------------------------------------------------------------------
-contract RyuCoin is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
-    string public name = "RyuCoin";
-    string public symbol = "RC";
-    uint256 public decimals = 18;
+contract FitFunsGames is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
+    string private _name = "FitFunsGames";
+    string private _symbol = "FFG";
+
+    function name() public view returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view returns (string memory) {
+        return _symbol;
+    }
 }
