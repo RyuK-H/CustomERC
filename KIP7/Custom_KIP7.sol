@@ -149,7 +149,7 @@ contract KIP7 is KIP13, IKIP7 {
 
     function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
         _transfer(sender, recipient, amount);
-        _approve(sender, msg.sender, amount);
+        _approve(sender, msg.sender, allowed[sender][msg.sender].sub(amount));
         return true;
     }
     
