@@ -278,10 +278,12 @@ contract BurnableToken is StandardToken, Ownable {
 contract MintableToken is StandardToken, Ownable {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
+    event MintReStart();
 
     bool public mintingFinished = false;
 
     modifier canMint() { require(!mintingFinished); _; }
+    modifier cantMint() { require(mintingFinished); _; }
 
     function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
         totalSupply_ = totalSupply_.add(_amount);
@@ -296,6 +298,12 @@ contract MintableToken is StandardToken, Ownable {
     function finishMinting() onlyOwner canMint public returns (bool) {
         mintingFinished = true;
         emit MintFinished();
+        return true;
+    }
+
+    function reStartMinting() onlyOwner cantMint public returns (bool) {
+        mintingFinished = false;
+        emit MintReStart();
         return true;
     }
 }
