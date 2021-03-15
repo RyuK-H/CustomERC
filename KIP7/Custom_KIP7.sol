@@ -391,22 +391,6 @@ contract PausableToken is KIP7, Pausable, BlackList {
 
         return super.transferFrom(sender, recipient, amount);
     }
-
-    function safeTransfer(address recipient, uint256 amount) public whenNotPaused CheckBlackList {
-        return super.safeTransfer(recipient, amount);
-    }
-
-    function safeTransfer(address recipient, uint256 amount, bytes memory data) public whenNotPaused CheckBlackList {
-        return super.safeTransfer(recipient, amount, data);
-    }
-
-    function safeTransferFrom(address sender, address recipient, uint256 amount) public {
-        return super.safeTransferFrom(sender, recipient, amount);
-    }
-
-    function safeTransferFrom(address sender, address recipient, uint256 amount, bytes memory data) public {
-        return super.safeTransferFrom(sender, recipient, amount, data);
-    }
 }
 // ----------------------------------------------------------------------------
 // @Project FitFunsGames (FFG)
