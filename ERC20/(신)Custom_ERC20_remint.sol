@@ -121,7 +121,7 @@ contract BlackList is Ownable {
 
     mapping( address => bool ) public blackList;
 
-    modifier CheckBlackList { require(blackList[msg.sender] != true); _; }
+    modifier CheckBlackList() { require(blackList[msg.sender] != true); _; }
 
     function SetLockAddress(address _lockAddress) external onlyOwnerOrOperator returns (bool) {
         require(_lockAddress != address(0));
