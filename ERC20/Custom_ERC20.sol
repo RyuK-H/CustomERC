@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at Etherscan.io on 2020-09-12
-*/
-
 pragma solidity ^0.4.24;
 
 // ----------------------------------------------------------------------------
@@ -89,7 +85,6 @@ contract BasicToken is ERC20Basic {
 // @title Ownable
 // ----------------------------------------------------------------------------
 contract Ownable {
-
     address public owner;
     address public operator;
 
@@ -121,7 +116,6 @@ contract Ownable {
 // @dev Base contract which allows children to implement an emergency stop mechanism.
 // ----------------------------------------------------------------------------
 contract BlackList is Ownable {
-
     event Lock(address indexed LockedAddress);
     event Unlock(address indexed UnLockedAddress);
 
@@ -180,7 +174,6 @@ contract Pausable is Ownable {
 // https://github.com/ethereum/EIPs/issues/20
 // ----------------------------------------------------------------------------
 contract StandardToken is ERC20, BasicToken {
-  
     mapping (address => mapping (address => uint256)) internal allowed;
 
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
@@ -193,6 +186,7 @@ contract StandardToken is ERC20, BasicToken {
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
     
         emit Transfer(_from, _to, _value);
+        emit Approval(_from, msg.sender, allowed[_from][msg.sender]);
     
         return true;
     }
@@ -221,9 +215,9 @@ contract StandardToken is ERC20, BasicToken {
         uint256 oldValue = allowed[msg.sender][_spender];
     
         if (_subtractedValue > oldValue) {
-        allowed[msg.sender][_spender] = 0;
+            allowed[msg.sender][_spender] = 0;
         } else {
-        allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
+            allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
         }
     
         emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
@@ -243,17 +237,13 @@ contract MultiTransferToken is StandardToken, Ownable {
     
         for (ui = 0; ui < _to.length; ui++) {
             require(_to[ui] != address(0));
-
             amountSum = amountSum.add(_amount[ui]);
         }
 
         require(amountSum <= balances[msg.sender]);
 
         for (ui = 0; ui < _to.length; ui++) {
-            balances[msg.sender] = balances[msg.sender].sub(_amount[ui]);
-            balances[_to[ui]] = balances[_to[ui]].add(_amount[ui]);
-        
-            emit Transfer(msg.sender, _to[ui], _amount[ui]);
+            transfer(_to[ui], _amount[ui]);
         }
     
         return true;
@@ -264,9 +254,7 @@ contract MultiTransferToken is StandardToken, Ownable {
 // @dev Token that can be irreversibly burned (destroyed).
 // ----------------------------------------------------------------------------
 contract BurnableToken is StandardToken, Ownable {
-
     event BurnAdminAmount(address indexed burner, uint256 value);
-    event BurnBlackListAmount(address indexed burner, uint256 value);
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
         require(_value <= balances[msg.sender]);
@@ -276,16 +264,6 @@ contract BurnableToken is StandardToken, Ownable {
     
         emit BurnAdminAmount(msg.sender, _value);
         emit Transfer(msg.sender, address(0), _value);
-    }
-    
-    function burnBlackListAmount(address _user, uint256 _value) onlyOwner public {
-        require(_value <= balances[_user]);
-
-        balances[_user] = balances[_user].sub(_value);
-        totalSupply_ = totalSupply_.sub(_value);
-    
-        emit BurnBlackListAmount(_user, _value);
-        emit Transfer(_user, address(0), _value);
     }
 }
 // ----------------------------------------------------------------------------
@@ -298,10 +276,14 @@ contract MintableToken is StandardToken, Ownable {
     event MintFinished();
     event MintReStart();
 
-    bool public mintingFinished = false;
+    bool private _mintingFinished = false;
 
-    modifier canMint() { require(!mintingFinished); _; }
-    modifier cantMint() { require(mintingFinished); _; }
+    modifier canMint() { require(!_mintingFinished); _; }
+    modifier cantMint() { require(_mintingFinished); _; }
+
+    function mintingFinished() public view returns (bool) {
+        return _mintingFinished;
+    }
 
     function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
         totalSupply_ = totalSupply_.add(_amount);
@@ -314,13 +296,13 @@ contract MintableToken is StandardToken, Ownable {
     }
 
     function finishMinting() onlyOwner canMint public returns (bool) {
-        mintingFinished = true;
+        _mintingFinished = true;
         emit MintFinished();
         return true;
     }
-    
+
     function reStartMinting() onlyOwner cantMint public returns (bool) {
-        mintingFinished = false;
+        _mintingFinished = false;
         emit MintReStart();
         return true;
     }
@@ -330,12 +312,14 @@ contract MintableToken is StandardToken, Ownable {
 // @dev StandardToken modified with pausable transfers.
 // ----------------------------------------------------------------------------
 contract PausableToken is StandardToken, Pausable, BlackList {
-
     function transfer(address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
         return super.transfer(_to, _value);
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public whenNotPaused CheckBlackList returns (bool) {
+        require(blackList[_from] != true);
+        require(blackList[_to] != true);
+
         return super.transferFrom(_from, _to, _value);
     }
 
@@ -351,11 +335,13 @@ contract PausableToken is StandardToken, Pausable, BlackList {
         return super.decreaseApproval(_spender, _subtractedValue);
     }
 }
-// ——————————————————————————————————————
-// @Project --
-// ——————————————————————————————————————
-contract CoinName is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
-    string public name = "CoinName";
-    string public symbol = "CoinSymbol";
+// ----------------------------------------------------------------------------
+// @Project RyuCoin (RC)
+// @Creator Johnson Ryu (BlockSmith Developer)
+// @Source Code Verification ()
+// ----------------------------------------------------------------------------
+contract RyuCoin is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
+    string public name = "RyuCoin";
+    string public symbol = "RC";
     uint256 public decimals = 18;
 }

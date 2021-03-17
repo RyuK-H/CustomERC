@@ -333,7 +333,7 @@ contract MintableToken is KIP7, Ownable {
     event MintFinished();
     event MintReStart();
 
-    bool public _mintingFinished = false;
+    bool private _mintingFinished = false;
 
     modifier canMint() { require(!_mintingFinished); _; }
     modifier cantMint() { require(_mintingFinished); _; }
