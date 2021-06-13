@@ -43,6 +43,27 @@ interface IKIP13 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 /**
+ * @dev Interface of the KIP7 standard as defined in the KIP. Does not include
+ * the optional functions; to access them see `KIP7Metadata`.
+ * See http://kips.klaytn.com/KIPs/kip-7-fungible_token
+ */
+contract IKIP7 is IKIP13 {
+    function totalSupply() public view returns (uint256);
+    function balanceOf(address account) public view returns (uint256);
+    function decimals() public view returns (uint8);
+    function transfer(address recipient, uint256 amount) public returns (bool);
+    function allowance(address owner, address spender) public view returns (uint256);
+    function approve(address spender, uint256 amount) public returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool);
+    function safeTransfer(address recipient, uint256 amount, bytes memory data) public;
+    function safeTransfer(address recipient, uint256 amount) public;
+    function safeTransferFrom(address sender, address recipient, uint256 amount, bytes memory data) public;
+    function safeTransferFrom(address sender, address recipient, uint256 amount) public;
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+/**
  * @dev Implementation of the `IKIP13` interface.
  *
  * Contracts may inherit from this and call `_registerInterface` to declare
@@ -65,27 +86,6 @@ contract KIP13 is IKIP13 {
         _supportedInterfaces[interfaceId] = true;
     }
 }
-/**
- * @dev Interface of the KIP7 standard as defined in the KIP. Does not include
- * the optional functions; to access them see `KIP7Metadata`.
- * See http://kips.klaytn.com/KIPs/kip-7-fungible_token
- */
-contract IKIP7 is IKIP13 {
-    function totalSupply() public view returns (uint256);
-    function balanceOf(address account) public view returns (uint256);
-    function decimals() public view returns (uint8);
-    function transfer(address recipient, uint256 amount) public returns (bool);
-    function allowance(address owner, address spender) public view returns (uint256);
-    function approve(address spender, uint256 amount) public returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool);
-    function safeTransfer(address recipient, uint256 amount, bytes memory data) public;
-    function safeTransfer(address recipient, uint256 amount) public;
-    function safeTransferFrom(address sender, address recipient, uint256 amount, bytes memory data) public;
-    function safeTransferFrom(address sender, address recipient, uint256 amount) public;
-
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-}
 
 contract IKIP7Receiver {
     function onKIP7Received(address _operator, address _from, uint256 _amount, bytes memory _data) public returns (bytes4);
@@ -96,21 +96,21 @@ contract IKIP7Receiver {
 contract KIP7 is KIP13, IKIP7 {
     using SafeMath for uint256;
     
-    uint256 internal totalSupply_;
+    uint256 internal _totalSupply;
     uint8 private _decimals = 18;
     
-    mapping(address => uint256) internal balances;
-    mapping (address => mapping (address => uint256)) internal allowed;
+    mapping(address => uint256) internal _balances;
+    mapping (address => mapping (address => uint256)) internal _allowances;
 
     bytes4 private constant _KIP7_RECEIVED = 0x9d188c22;
     bytes4 private constant _INTERFACE_ID_KIP7 = 0x65787371;
 
     function totalSupply() public view returns (uint256) {
-        return totalSupply_;
+        return _totalSupply;
     }
 
     function balanceOf(address account) public view returns (uint256) {
-        return balances[account];
+        return _balances[account];
     }
 
     function decimals() public view returns (uint8) {
@@ -123,7 +123,7 @@ contract KIP7 is KIP13, IKIP7 {
     }
 
     function allowance(address owner, address spender) public view returns (uint256) {
-        return allowed[owner][spender];
+        return _allowances[owner][spender];
     }
 
     function approve(address spender, uint256 amount) public returns (bool) {
@@ -132,15 +132,15 @@ contract KIP7 is KIP13, IKIP7 {
     }
 
     function increaseApproval(address spender, uint256 amount) public returns (bool) {
-        _approve(msg.sender, spender, allowed[msg.sender][spender].add(amount));
+        _approve(msg.sender, spender, _allowances[msg.sender][spender].add(amount));
         return true;
     }
 
     function decreaseApproval(address spender, uint256 amount) public returns (bool) {
-        if (amount >= allowed[msg.sender][spender]) {
+        if (amount >= _allowances[msg.sender][spender]) {
             amount = 0;
         } else {
-            amount = allowed[msg.sender][spender].sub(amount);
+            amount = _allowances[msg.sender][spender].sub(amount);
         }
 
         _approve(msg.sender, spender, amount);
@@ -149,7 +149,7 @@ contract KIP7 is KIP13, IKIP7 {
 
     function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
         _transfer(sender, recipient, amount);
-        _approve(sender, msg.sender, allowed[sender][msg.sender].sub(amount));
+        _approve(sender, msg.sender, _allowances[sender][msg.sender].sub(amount));
         return true;
     }
     
@@ -175,7 +175,7 @@ contract KIP7 is KIP13, IKIP7 {
         require(owner != address(0), "KIP7: approve from the zero address");
         require(spender != address(0), "KIP7: approve to the zero address");
 
-        allowed[owner][spender] = amount;
+        _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
 
@@ -183,8 +183,8 @@ contract KIP7 is KIP13, IKIP7 {
         require(sender != address(0), "KIP7: transfer from the zero address");
         require(recipient != address(0), "KIP7: transfer to the zero address");
 
-        balances[sender] = balances[sender].sub(amount);
-        balances[recipient] = balances[recipient].add(amount);
+        _balances[sender] = _balances[sender].sub(amount);
+        _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
     }
 
@@ -209,12 +209,17 @@ contract Ownable {
     address public owner;
     address public operator;
 
+    event SetOwner(address owner);
+    event SetMinter(address minter);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
 
     constructor() public {
         owner    = msg.sender;
         operator = msg.sender;
+
+        emit SetOwner(msg.sender);
+        emit SetMinter(msg.sender);
     }
 
     modifier onlyOwner() { require(msg.sender == owner); _; }
@@ -233,29 +238,29 @@ contract Ownable {
     }
 }
 // ----------------------------------------------------------------------------
-// @title BlackList
+// @title Blocklist
 // ----------------------------------------------------------------------------
-contract BlackList is Ownable {
+contract Blocklist is Ownable {
     event Lock(address indexed _lockAddress);
     event Unlock(address indexed _unlockAddress);
 
-    mapping( address => bool ) public blackList;
+    mapping( address => bool ) public blockList;
 
-    modifier CheckBlackList() { require(blackList[msg.sender] != true); _; }
+    modifier CheckBlockList() { require(blockList[msg.sender] != true); _; }
 
     function SetLockAddress(address _lockAddress) external onlyOwnerOrOperator {
         require(_lockAddress != address(0));
         require(_lockAddress != owner);
-        require(blackList[_lockAddress] != true);
+        require(blockList[_lockAddress] != true);
         
-        blackList[_lockAddress] = true;
+        blockList[_lockAddress] = true;
         emit Lock(_lockAddress);
     }
 
     function UnLockAddress(address _unlockAddress) external onlyOwner {
-        require(blackList[_unlockAddress] != false);
+        require(blockList[_unlockAddress] != false);
         
-        blackList[_unlockAddress] = false;
+        blockList[_unlockAddress] = false;
         emit Unlock(_unlockAddress);
     }
 }
@@ -286,7 +291,7 @@ contract Pausable is Ownable {
 // @dev Only Admin
 // ----------------------------------------------------------------------------
 contract MultiTransferToken is KIP7, Ownable {
-    function MultiTransfer(address[] _to, uint256[] _amount) onlyOwner public returns (bool) {
+    function MultiTransfer(address[] _to, uint256[] _amount) onlyOwner public {
         require(_to.length == _amount.length);
 
         uint256 ui;
@@ -297,13 +302,11 @@ contract MultiTransferToken is KIP7, Ownable {
             amountSum = amountSum.add(_amount[ui]);
         }
 
-        require(amountSum <= balances[msg.sender]);
+        require(amountSum <= _balances[msg.sender]);
         
         for (ui = 0; ui < _to.length; ui++) {
             transfer(_to[ui], _amount[ui]);
         }
-        
-        return true;
     }
 }
 // ----------------------------------------------------------------------------
@@ -314,10 +317,10 @@ contract BurnableToken is KIP7, Ownable {
     event BurnAdminAmount(address indexed burner, uint256 value);
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
-        require(_value <= balances[msg.sender]);
+        require(_value <= _balances[msg.sender]);
 
-        balances[msg.sender] = balances[msg.sender].sub(_value);
-        totalSupply_ = totalSupply_.sub(_value);
+        _balances[msg.sender] = _balances[msg.sender].sub(_value);
+        _totalSupply = _totalSupply.sub(_value);
     
         emit BurnAdminAmount(msg.sender, _value);
         emit Transfer(msg.sender, address(0), _value);
@@ -343,8 +346,8 @@ contract MintableToken is KIP7, Ownable {
     }
 
     function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
-        totalSupply_ = totalSupply_.add(_amount);
-        balances[_to] = balances[_to].add(_amount);
+        _totalSupply = _totalSupply.add(_amount);
+        _balances[_to] = _balances[_to].add(_amount);
     
         emit Mint(_to, _amount);
         emit Transfer(address(0), _to, _amount);
@@ -368,36 +371,44 @@ contract MintableToken is KIP7, Ownable {
 // @title Pausable token
 // @dev StandardToken modified with pausable transfers.
 // ----------------------------------------------------------------------------
-contract PausableToken is KIP7, Pausable, BlackList {
-    function transfer(address recipient, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
+contract PausableToken is KIP7, Pausable, Blocklist {
+    function transfer(address recipient, uint256 amount) public whenNotPaused CheckBlockList returns (bool) {
         return super.transfer(recipient, amount);
     }
 
-    function approve(address spender, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
+    function approve(address spender, uint256 amount) public whenNotPaused CheckBlockList returns (bool) {
         return super.approve(spender, amount);
     }
 
-    function increaseApproval(address spender, uint amount) public whenNotPaused CheckBlackList returns (bool) {
+    function increaseApproval(address spender, uint amount) public whenNotPaused CheckBlockList returns (bool) {
         return super.increaseApproval(spender, amount);
     }
 
-    function decreaseApproval(address spender, uint amount) public whenNotPaused CheckBlackList returns (bool) {
+    function decreaseApproval(address spender, uint amount) public whenNotPaused CheckBlockList returns (bool) {
         return super.decreaseApproval(spender, amount);
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public whenNotPaused CheckBlackList returns (bool) {
-        require(blackList[sender] != true);
-        require(blackList[recipient] != true);
+    function transferFrom(address sender, address recipient, uint256 amount) public whenNotPaused CheckBlockList returns (bool) {
+        require(blockList[sender] != true);
+        require(blockList[recipient] != true);
 
         return super.transferFrom(sender, recipient, amount);
     }
 }
 // ----------------------------------------------------------------------------
-// @Project FitFunsGames (FFG)
+// @Project KIPCUSTOMTOKEN
 // ----------------------------------------------------------------------------
-contract FitFunsGames is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
-    string private _name = "FitFunsGames";
-    string private _symbol = "FFG";
+contract KIPCUSTOMTOKEN is PausableToken, MintableToken, BurnableToken, MultiTransferToken {
+    event SetTokenInfo(string name, string symbol);
+    string private _name = "";
+    string private _symbol = "";
+
+    constructor() public {
+        _name = "tokenName";
+        _symbol = "tokenSymbol";
+
+        emit SetTokenInfo(_name, _symbol);
+    }
 
     function name() public view returns (string memory) {
         return _name;
