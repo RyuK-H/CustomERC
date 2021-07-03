@@ -97,6 +97,7 @@ contract KIP7 is KIP13, IKIP7 {
     using SafeMath for uint256;
 
     struct LockInfo {
+        bool isLocked;
         uint8 tokenType;
         uint256 amount;
         uint256 distributedTime;
@@ -209,24 +210,23 @@ contract KIP7 is KIP13, IKIP7 {
         require(sender != address(0), "KIP7: transfer from the zero address");
         require(recipient != address(0), "KIP7: transfer to the zero address");
 
-        uint8 adminAcountType = _cardioWallet[wallet];
+        uint8 adminAccountType = _cardioWallet[sender];
         
-        if(adminAcountType > 0) {
+        if(adminAccountType > 0) {
             // 어드민이 보내는 물량이다.
             _addLocker(recipient, adminAccountType, amount);
         }
 
         // 락업된 유저인가?
         // 여기서 어드민일 경우도 생각해야함
-        let locker = _lockedInfo[sender];
-        if (locker) {
+        LockInfo storage lockInfo = _lockedInfo[sender];
+        if (lockInfo.isLocked) {
             // 락업된 유저면 락업해제 시도
-            this.unLock(from);
+            _unLock(recipient);
         }
 
         _balances[sender] = _balances[sender].sub(amount);
         _balances[recipient] = _balances[recipient].add(amount);
-        emit Transfer(sender, recipient, amount);
     }
 
     function _addLocker(address recipient, uint8 adminAcountType, uint256 amount) internal {
@@ -257,6 +257,7 @@ contract KIP7 is KIP13, IKIP7 {
         }
         
         LockInfo memory newLockInfo = LockInfo({
+            isLocked: true,
             tokenType : adminAcountType,
             amount: amount,
             distributedTime: now,
@@ -268,37 +269,52 @@ contract KIP7 is KIP13, IKIP7 {
         
         _lockedInfo[recipient] = newLockInfo;
     }
-
-    function _unLock(address sender) {
-      let lockInfo = this.lockers[address];
-      if (!lockInfo) {
-          return;
-      }
-
-      if (this.isOverLockUpPeriodMonth(lockInfo.distributedTime, lockInfo.lockUpPeriodMonth) === false) {
-          return;
-      }
-
-      let now = Date.now();
-      let count = this.getCount(now, lockInfo);
-      let unlockAmount = lockInfo.amount * count * lockInfo.unlockAmountPerCount;
-      let unlockCount = lockInfo.unlockCount - count; // 새로 추가
-      if (lockInfo.amount - unlockAmount < 0 || unlockCount <= 0) {
+    
+    function _unLock(address sender) internal {
+        LockInfo storage lockInfo = _lockedInfo[sender];
+        
+        if(_isOverLockUpPeriodMonth(lockInfo.distributedTime, lockInfo.lockUpPeriodMonth)) {
+            return;
+        }
+        
+        uint256 blockTime = now;
+        uint256 count = _getCount(blockTime, lockInfo);
+        uint256 unlockAmount = lockInfo.amount.mul(count).mul(lockInfo.unlockAmountPerCount);
+        uint256 unlockCount = lockInfo.unlockCount - count; // 새로 추가
+        
+        if (lockInfo.amount.sub(unlockAmount) < 0 || unlockCount <= 0) {
           unlockAmount = lockInfo.amount;
-      }
+        }
+        
+        // lockInfo 정보 갱신
+        lockInfo.lastUnlockTimestamp = now;
+        lockInfo.unlockCount = unlockCount;
+        lockInfo.amount = lockInfo.amount - unlockAmount;
+        
+        _balances[sender] = _balances[sender].add(unlockAmount);
+    }
+    
+    function _getCount(uint256 curBlockTime, LockInfo lockInfo) internal pure returns (uint256) {
+        uint256 lockUpTime = lockInfo.lockUpPeriodMonth * 24 * 60 * 60 * 1000;
+        uint256 startTime = lockInfo.distributedTime.add(lockUpTime);
+        
+        uint256 count = 0;
 
-      // lockInfo 정보 갱신
-      lockInfo.lastUnlockTimestamp = now;
-      lockInfo.unlockCount = unlockCount;
-      lockInfo.amount = lockInfo.amount - unlockAmount;
-      // unlock 된 수량 더하기
-      this.balances[address] = this.balances[address] + unlockAmount;
-  }
-
-
-
-
-
+        if (lockInfo.lastUnlockTimestamp == 0) {
+            count = _convertMSToMonth(curBlockTime - startTime);
+        } else {
+            count = _convertMSToMonth(curBlockTime - lockInfo.lastUnlockTimestamp);
+        }
+        return count;
+    }
+    
+    function _isOverLockUpPeriodMonth(uint256 time, uint8 period) internal view returns (bool) {
+        return (now - time).div(1000).div(60).div(60).div(24) > period;
+    }
+    
+    function _convertMSToMonth(uint256 time) internal pure returns (uint256) {
+        return time.div(1000).div(60).div(60).div(24).div(30);
+    }
 
     function isContract(address account) internal view returns (bool) {
         uint256 size;
