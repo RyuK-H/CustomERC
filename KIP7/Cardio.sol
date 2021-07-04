@@ -96,12 +96,49 @@ contract IKIP7Receiver {
     function onKIP7Received(address _operator, address _from, uint256 _amount, bytes memory _data) public returns (bytes4);
 }
 // ----------------------------------------------------------------------------
+// @title Ownable
+// ----------------------------------------------------------------------------
+contract Ownable {
+    address public owner;
+    address public operator;
+
+    event SetOwner(address owner);
+    event SetMinter(address minter);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
+
+    constructor() public {
+        owner    = msg.sender;
+        operator = msg.sender;
+
+        emit SetOwner(msg.sender);
+        emit SetMinter(msg.sender);
+    }
+
+    modifier onlyOwner() { require(msg.sender == owner); _; }
+    modifier onlyOwnerOrOperator() { require(msg.sender == owner || msg.sender == operator); _; }
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0));
+        emit OwnershipTransferred(owner, _newOwner);
+        owner = _newOwner;
+    }
+
+    function transferOperator(address _newOperator) external onlyOwner {
+        require(_newOperator != address(0));
+        emit OperatorTransferred(operator, _newOperator);
+        operator = _newOperator;
+    }
+}
+// ----------------------------------------------------------------------------
 // @title KIP7
 // ----------------------------------------------------------------------------
-contract KIP7 is KIP13, IKIP7 {
+contract KIP7 is KIP13, IKIP7, Ownable {
     using SafeMath for uint256;
     
     event LockedInfo(address indexed from, address indexed to, uint256 value, uint8 tokenType, uint256 distributedTime, uint8 lockUpPeriodMonth, uint256 unlockAmountPerCount, uint256 unlockCount);
+    event ChangeListingTime(uint256 oldTime, uint256 newTime);
+    event FinshedSetExchangeListingTime();
 
     struct LockInfo {
         bool isLocked;
@@ -119,6 +156,7 @@ contract KIP7 is KIP13, IKIP7 {
 
     uint256 internal _tokenCreatedTime;
     uint256 internal _exchangeListingTime = 9999999999;
+    bool private _setExchangeListingTimeFinished = false;
     
     mapping(address => uint256) internal _balances;
     mapping(address => mapping (address => uint256)) internal _allowances;
@@ -129,13 +167,15 @@ contract KIP7 is KIP13, IKIP7 {
     bytes4 private constant _KIP7_RECEIVED = 0x9d188c22;
     bytes4 private constant _INTERFACE_ID_KIP7 = 0x65787371;
 
+    modifier canSetExchangeListingTime() { require(!_setExchangeListingTimeFinished); _; }
+
     constructor() public {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
         _cardioWallet[0xAb388B7E9bB7C9DB8858DbACACCC667d4Cf5D390] = 1;
-        // Team & Advisors
+        // Team & Advisors A
         _cardioWallet[0x5Ea976A033aE4473faA7beaAe4A9CCFFD6075FCc] = 2;
-        // Team & Advisors
+        // Team & Advisors B
         _cardioWallet[0x9Cd9A5fad80707005a3835bEc9F68A892e256108] = 3;
         // Ecosystem Activation
         _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 4;
@@ -148,17 +188,13 @@ contract KIP7 is KIP13, IKIP7 {
     }
 
     function balanceOf(address account) public view returns (uint256) {
-        uint256 totalBalances = 0;
+        uint256 totalBalances = _balances[account];
         uint8 tokenType;
 
         for (tokenType = 1; tokenType <= 5; tokenType++) {
             LockInfo memory lockInfo = _lockedInfo[account][tokenType];
-            if (lockInfo.isLocked) {
-                totalBalances = totalBalances.add(lockInfo.amount);
-            }
+            totalBalances = totalBalances.add(lockInfo.amount);
         }
-        
-        totalBalances = totalBalances.add(_balances[account]);
         
         return totalBalances;
     }
@@ -174,6 +210,20 @@ contract KIP7 is KIP13, IKIP7 {
 
     function decimals() public view returns (uint8) {
         return _decimals;
+    }
+
+    function setExchangeListingTimeFinished() public view returns (bool) {
+        return _setExchangeListingTimeFinished;
+    }
+
+    function setExchangeListingTime(uint256 listingTime) onlyOwner canSetExchangeListingTime public {
+        emit ChangeListingTime(_exchangeListingTime, listingTime);
+        _exchangeListingTime = listingTime;
+    }
+
+    function finishSetExchangeListingTime() onlyOwner canSetExchangeListingTime public {
+        _setExchangeListingTimeFinished = true;
+        emit FinshedSetExchangeListingTime();
     }
 
     function transfer(address recipient, uint256 amount) public returns (bool) {
@@ -264,15 +314,18 @@ contract KIP7 is KIP13, IKIP7 {
     function _addLocker(address recipient, uint8 adminAcountType, uint256 amount) internal {
         require(_lockedInfo[recipient][adminAcountType].isLocked == false, "Already Locked User");
         
+        uint256 distributedTime;
         uint8 lockUpPeriodMonth;
         uint256 unlockAmountPerCount;
         uint256 unlockCount;
         
         if(adminAcountType == 1) { // Crowd Sale
+            distributedTime = _exchangeListingTime;
             lockUpPeriodMonth = 2;
             unlockAmountPerCount = amount.div(20);
             unlockCount = 5;
         } else if(adminAcountType == 2) { // Team & Advisors
+            distributedTime = now;
             lockUpPeriodMonth = 3;
             unlockAmountPerCount = amount.div(10);
             unlockCount = 10;
@@ -303,13 +356,17 @@ contract KIP7 is KIP13, IKIP7 {
             return;
         }
 
-        // 만약 Type A냐?
-        // 상장 시간이 지났고, 이친구는 받지 못했냐?
-        // 그럼 일단 20% 줘라
-        // 받은 친구냐? 그럼 2개월 지났냐?
+        // Only Crowd Sale Type
+        if(tokenType == 1 && _exchangeListingTime <= now && lockInfo.unlockCount == 5) {
+            // lockInfo update
+            lockInfo.distributedTime = _exchangeListingTime;
+            lockInfo.lastUnlockTimestamp = now;
+            lockInfo.unlockCount = 4;
+            lockInfo.amount = lockInfo.amount.sub(lockInfo.unlockAmountPerCount);
+            
+            _balances[sender] = _balances[sender].add(lockInfo.unlockAmountPerCount);
+        }
 
-
-        // 나머지 친구들
         uint256 blockTime = now;
         uint256 count = _getUnLockCount(blockTime, lockInfo);
 
@@ -319,7 +376,7 @@ contract KIP7 is KIP13, IKIP7 {
 
         // Shortage due to burn token
         // or the last distribution
-        uint256 unlockCount = lockInfo.unlockCount.safeSub(count); // 새로 추가
+        uint256 unlockCount = lockInfo.unlockCount.safeSub(count);
 				if (lockInfo.amount.safeSub(unlockAmount) == 0 || unlockCount == 0) {
             unlockAmount = lockInfo.amount;
             lockInfo.isLocked = false;
@@ -339,7 +396,6 @@ contract KIP7 is KIP13, IKIP7 {
         // 1 Month = 30 Days 
         uint256 lockUpTime = lockInfo.lockUpPeriodMonth * 30 * 24 * 60 * 60;
 
-        // A타입은 상장 시간이여야함
         uint256 startTime = lockInfo.distributedTime.add(lockUpTime);
         uint256 count = 0;
 
@@ -377,46 +433,18 @@ contract KIP7 is KIP13, IKIP7 {
     }
 }
 // ----------------------------------------------------------------------------
-// @title Ownable
-// ----------------------------------------------------------------------------
-contract Ownable {
-    address public owner;
-    address public operator;
-
-    event SetOwner(address owner);
-    event SetMinter(address minter);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
-
-    constructor() public {
-        owner    = msg.sender;
-        operator = msg.sender;
-
-        emit SetOwner(msg.sender);
-        emit SetMinter(msg.sender);
-    }
-
-    modifier onlyOwner() { require(msg.sender == owner); _; }
-    modifier onlyOwnerOrOperator() { require(msg.sender == owner || msg.sender == operator); _; }
-
-    function transferOwnership(address _newOwner) external onlyOwner {
-        require(_newOwner != address(0));
-        emit OwnershipTransferred(owner, _newOwner);
-        owner = _newOwner;
-    }
-
-    function transferOperator(address _newOperator) external onlyOwner {
-        require(_newOperator != address(0));
-        emit OperatorTransferred(operator, _newOperator);
-        operator = _newOperator;
-    }
-}
-// ----------------------------------------------------------------------------
 // @title Burnable Token
 // @dev Token that can be irreversibly burned (destroyed).
 // ----------------------------------------------------------------------------
-contract BurnableToken is KIP7, Ownable {
+contract BurnableToken is KIP7 {
     event BurnAdminAmount(address indexed burner, uint256 value);
+    event BurnLockedToken(address indexed burner, uint256 value, uint8 tokenType);
+
+    modifier onlyCardioWallet() {
+      require(msg.sender == 0x9Cd9A5fad80707005a3835bEc9F68A892e256108
+      || msg.sender == 0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9
+      || msg.sender == 0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24
+    ); _; }
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
         require(_value <= _balances[msg.sender]);
@@ -427,13 +455,32 @@ contract BurnableToken is KIP7, Ownable {
         emit BurnAdminAmount(msg.sender, _value);
         emit Transfer(msg.sender, address(0), _value);
     }
+
+    // Team & Advisors B - 3
+    // 0x9Cd9A5fad80707005a3835bEc9F68A892e256108
+    // Ecosystem Activation - 4
+    // 0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9
+    // Business Development - 5
+    // 0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24
+    function burnTypeToken(uint256 _value) onlyCardioWallet public {
+        uint8 adminAccountType = _cardioWallet[msg.sender];
+        LockInfo storage lockInfo = _lockedInfo[msg.sender][adminAccountType];
+
+        require(_value <= lockInfo.amount);
+
+        lockInfo.amount = lockInfo.amount.sub(_value);
+        _totalSupply = _totalSupply.sub(_value);
+    
+        emit BurnLockedToken(msg.sender, _value, adminAccountType);
+        emit Transfer(msg.sender, address(0), _value);
+    }
 }
 // ----------------------------------------------------------------------------
 // @title Mintable token
 // @dev Simple ERC20 Token example, with mintable token creation
 // Based on code by TokenMarketNet: https://github.com/TokenMarketNet/ico/blob/master/contracts/MintableToken.sol
 // ----------------------------------------------------------------------------
-contract MintableToken is KIP7, Ownable {
+contract MintableToken is KIP7 {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
 
