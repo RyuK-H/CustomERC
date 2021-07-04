@@ -379,7 +379,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
 
         // None
         if(count == 0) return;
-        uint256 unlockAmount;
+        uint256 unlockAmount = count.mul(lockInfo.unlockAmountPerCount);
 
         // Shortage due to burn token
         // or the last distribution
@@ -387,8 +387,6 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         if (lockInfo.amount.safeSub(unlockAmount) == 0 || remainUnLockCount == 0) {
             unlockAmount = lockInfo.amount;
             lockInfo.isLocked = false;
-        } else {
-            unlockAmount = count.mul(lockInfo.unlockAmountPerCount);
         }
         
         // lockInfo update
