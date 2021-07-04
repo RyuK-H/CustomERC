@@ -95,11 +95,14 @@ contract IKIP7Receiver {
 // ----------------------------------------------------------------------------
 contract KIP7 is KIP13, IKIP7 {
     using SafeMath for uint256;
+    
+    event LockedInfo(address indexed from, address indexed to, uint256 value, uint8 tokenType, uint256 distributedTime, uint8 lockUpPeriodMonth, uint256 unlockAmountPerCount, uint256 unlockCount);
 
     struct LockInfo {
         bool isLocked;
         uint8 tokenType;
         uint256 amount;
+        uint256 distributedAmount;
         uint256 distributedTime;
         uint8 lockUpPeriodMonth;
         uint256 lastUnlockTimestamp;
@@ -109,6 +112,8 @@ contract KIP7 is KIP13, IKIP7 {
     
     uint256 internal _totalSupply;
     uint8 private _decimals = 18;
+
+    uint256 internal _tokenCreatedTime;
     
     mapping(address => uint256) internal _balances;
     mapping(address => mapping (address => uint256)) internal _allowances;
@@ -120,16 +125,17 @@ contract KIP7 is KIP13, IKIP7 {
     bytes4 private constant _INTERFACE_ID_KIP7 = 0x65787371;
 
     constructor() public {
+        _tokenCreatedTime = now;
         // Crowd Sale Wallet
         _cardioWallet[0xAb388B7E9bB7C9DB8858DbACACCC667d4Cf5D390] = 1;
+        // Team & Advisors
+        _cardioWallet[0x5Ea976A033aE4473faA7beaAe4A9CCFFD6075FCc] = 2;
+        // Team & Advisors
+        _cardioWallet[0x9Cd9A5fad80707005a3835bEc9F68A892e256108] = 3;
         // Ecosystem Activation
-        _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 2;
-        // Team & Advisors
-        _cardioWallet[0x5Ea976A033aE4473faA7beaAe4A9CCFFD6075FCc] = 3;
-        // Team & Advisors
-        _cardioWallet[0x9Cd9A5fad80707005a3835bEc9F68A892e256108] = 4;
+        // _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 4;
         // Business Development
-        _cardioWallet[0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24] = 5;
+        // _cardioWallet[0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24] = 5;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -211,14 +217,12 @@ contract KIP7 is KIP13, IKIP7 {
         require(recipient != address(0), "KIP7: transfer to the zero address");
 
         uint8 adminAccountType = _cardioWallet[sender];
-        
+        // Crowd Sale Wallet, Team & Advisors from admin wallet
         if(adminAccountType > 0) {
             // 어드민이 보내는 물량이다.
             _addLocker(recipient, adminAccountType, amount);
         }
 
-        // 락업된 유저인가?
-        // 여기서 어드민일 경우도 생각해야함
         LockInfo storage lockInfo = _lockedInfo[sender];
         if (lockInfo.isLocked) {
             // 락업된 유저면 락업해제 시도
@@ -234,26 +238,18 @@ contract KIP7 is KIP13, IKIP7 {
         uint256 unlockAmountPerCount;
         uint256 unlockCount;
         
-        if(adminAcountType == 1) {
+        if(adminAcountType == 1) { // Crowd Sale
             lockUpPeriodMonth = 2;
             unlockAmountPerCount = amount.div(100).mul(20);
             unlockCount = 5;
-        } else if(adminAcountType == 2) {
-            lockUpPeriodMonth = 0;
-            unlockAmountPerCount = amount.div(100);
-            unlockCount = 100;
-        } else if(adminAcountType == 3) {
+        } else if(adminAcountType == 2) { // Team & Advisors
             lockUpPeriodMonth = 3;
             unlockAmountPerCount = amount.div(10);
             unlockCount = 10;
-        } else if(adminAcountType == 4) {
+        } else { // Team & Advisors
             lockUpPeriodMonth = 12;
             unlockAmountPerCount = amount.div(10);
             unlockCount = 10;
-        } else {
-            lockUpPeriodMonth = 0;
-            unlockAmountPerCount = amount.div(20);
-            unlockCount = 20;
         }
         
         LockInfo memory newLockInfo = LockInfo({
@@ -272,14 +268,26 @@ contract KIP7 is KIP13, IKIP7 {
     
     function _unLock(address sender) internal {
         LockInfo storage lockInfo = _lockedInfo[sender];
-        
-        if(_isOverLockUpPeriodMonth(lockInfo.distributedTime, lockInfo.lockUpPeriodMonth)) {
+
+        // 마지막이라면 lock true로 바꿔주면 될것 같은데
+        if(_isOverLockUpPeriodMonth((now - lockInfo.distributedTime), lockInfo.lockUpPeriodMonth)) {
             return;
         }
         
+        // 지금 시간
         uint256 blockTime = now;
-        uint256 count = _getCount(blockTime, lockInfo);
+        // unlock 시킬 수
+        uint256 count = _getUnLockCount(blockTime, lockInfo);
+        
+
+        // 아직 마지막이 아니냐?
+        // 이번에 unlock 시키는 물량
         uint256 unlockAmount = lockInfo.amount.mul(count).mul(lockInfo.unlockAmountPerCount);
+        // 마지막달 이냐?
+
+
+
+
         uint256 unlockCount = lockInfo.unlockCount - count; // 새로 추가
         
         if (lockInfo.amount.sub(unlockAmount) < 0 || unlockCount <= 0) {
@@ -294,8 +302,9 @@ contract KIP7 is KIP13, IKIP7 {
         _balances[sender] = _balances[sender].add(unlockAmount);
     }
     
-    function _getCount(uint256 curBlockTime, LockInfo lockInfo) internal pure returns (uint256) {
-        uint256 lockUpTime = lockInfo.lockUpPeriodMonth * 24 * 60 * 60 * 1000;
+    function _getUnLockCount(uint256 curBlockTime, LockInfo lockInfo) internal pure returns (uint256) {
+        // 1 Month = 30 Days 
+        uint256 lockUpTime = lockInfo.lockUpPeriodMonth * 30 * 24 * 60 * 60;
         uint256 startTime = lockInfo.distributedTime.add(lockUpTime);
         
         uint256 count = 0;
@@ -309,11 +318,11 @@ contract KIP7 is KIP13, IKIP7 {
     }
     
     function _isOverLockUpPeriodMonth(uint256 time, uint8 period) internal view returns (bool) {
-        return (now - time).div(1000).div(60).div(60).div(24) > period;
+        return _convertMSToMonth(time) > period;
     }
     
     function _convertMSToMonth(uint256 time) internal pure returns (uint256) {
-        return time.div(1000).div(60).div(60).div(24).div(30);
+        return time.div(60).div(60).div(24).div(30);
     }
 
     function isContract(address account) internal view returns (bool) {
@@ -399,10 +408,41 @@ contract MintableToken is KIP7, Ownable {
         return _mintingFinished;
     }
 
-    function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
+    function mint(address _to, uint256 _amount, uint8 _tokenType) onlyOwner canMint public returns (bool) {
         _totalSupply = _totalSupply.add(_amount);
         _balances[_to] = _balances[_to].add(_amount);
-    
+
+        if(_tokenType >= 4) {
+            uint8 lockUpPeriodMonth;
+            uint256 unlockAmountPerCount;
+            uint256 unlockCount;
+            
+            if(_tokenType == 4) { // Ecosystem Activation
+                lockUpPeriodMonth = 0;
+                unlockAmountPerCount = _amount.div(20);
+                unlockCount = 20;
+            } else if(_tokenType == 5) { // Business Development
+                lockUpPeriodMonth = 0;
+                unlockAmountPerCount = _amount.div(100);
+                unlockCount = 100;
+            }
+            
+            LockInfo memory newLockInfo = LockInfo({
+                isLocked: true,
+                tokenType : _tokenType,
+                amount: _amount,
+                distributedTime: _tokenCreatedTime,
+                lockUpPeriodMonth: lockUpPeriodMonth,
+                lastUnlockTimestamp: 0,
+                unlockAmountPerCount: unlockAmountPerCount,
+                unlockCount: unlockCount
+            });
+            
+            _lockedInfo[_to] = newLockInfo;
+            
+            emit LockedInfo(address(0), _to, _amount, _tokenType, _tokenCreatedTime, lockUpPeriodMonth, unlockAmountPerCount, unlockCount);
+        }
+
         emit Mint(_to, _amount);
         emit Transfer(address(0), _to, _amount);
     
