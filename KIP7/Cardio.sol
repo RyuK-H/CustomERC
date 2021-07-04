@@ -577,9 +577,9 @@ contract PausableToken is KIP7 {
     }
 }
 // ----------------------------------------------------------------------------
-// @Project KIPCUSTOMTOKEN
+// @Project CardioCoin
 // ----------------------------------------------------------------------------
-contract KIPCUSTOMTOKEN is MintableToken, BurnableToken {
+contract CardioCoin is MintableToken, BurnableToken {
     event SetTokenInfo(string name, string symbol);
     string private _name = "";
     string private _symbol = "";
