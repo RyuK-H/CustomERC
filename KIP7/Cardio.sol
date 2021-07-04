@@ -136,7 +136,7 @@ contract Ownable {
 contract KIP7 is KIP13, IKIP7, Ownable {
     using SafeMath for uint256;
     
-    event LockedInfo(address indexed from, address indexed to, uint256 value, uint8 tokenType, uint256 distributedTime, uint8 lockUpPeriodMonth, uint256 unlockAmountPerCount, uint256 remainUnLockCount, uint256 CONST_UNLOCKCOUNT);
+    event LockedInfo(address indexed from, address indexed to, uint256 value, uint8 tokenType, uint256 distributedTime, uint256 lockUpPeriodMonth, uint256 unlockAmountPerCount, uint256 remainUnLockCount, uint256 CONST_UNLOCKCOUNT);
     event ChangeListingTime(uint256 oldTime, uint256 newTime);
     event FinshedSetExchangeListingTime();
 
@@ -145,7 +145,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         uint8 tokenType;
         uint256 amount;
         uint256 distributedTime;
-        uint8 lockUpPeriodMonth;
+        uint256 lockUpPeriodMonth;
         uint256 lastUnlockTimestamp;
         uint256 unlockAmountPerCount;
         uint256 remainUnLockCount;
@@ -204,7 +204,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         return _balances[account];
     }
 
-    function lockUpInfo(address account, uint8 tokenType) public view returns (bool, uint8, uint256, uint256, uint8, uint256, uint256, uint256, uint256) {
+    function lockUpInfo(address account, uint8 tokenType) public view returns (bool, uint8, uint256, uint256, uint256, uint256, uint256, uint256, uint256) {
         LockInfo memory lockInfo = _lockedInfo[account][tokenType];
         return (lockInfo.isLocked, lockInfo.tokenType, lockInfo.amount, lockInfo.distributedTime, lockInfo.lockUpPeriodMonth, lockInfo.lastUnlockTimestamp, lockInfo.unlockAmountPerCount, lockInfo.remainUnLockCount, lockInfo.CONST_UNLOCKCOUNT);
     }
@@ -304,7 +304,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         for (tokenType = 1; tokenType <= 5; tokenType++) {
             LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
             if (lockInfo.isLocked) {
-                _unLock(recipient, tokenType);
+                _unLock(sender, tokenType);
             }
         }
         
@@ -316,7 +316,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         require(_lockedInfo[recipient][adminAcountType].isLocked == false, "Already Locked User");
         
         uint256 distributedTime;
-        uint8 lockUpPeriodMonth;
+        uint256 lockUpPeriodMonth;
         uint256 unlockAmountPerCount;
         uint256 remainUnLockCount;
         uint256 CONST_UNLOCKCOUNT;
@@ -370,7 +370,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
             _balances[sender] = _balances[sender].add(lockInfo.unlockAmountPerCount);
         }
 
-        if(_isOverLockUpPeriodMonth((now.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth)) {
+        if(_isOverLockUpPeriodMonth((now.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
             return;
         }
 
@@ -384,7 +384,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         // Shortage due to burn token
         // or the last distribution
         uint256 remainUnLockCount = lockInfo.remainUnLockCount.safeSub(count);
-		    if (lockInfo.amount.safeSub(unlockAmount) == 0 || remainUnLockCount == 0) {
+        if (lockInfo.amount.safeSub(unlockAmount) == 0 || remainUnLockCount == 0) {
             unlockAmount = lockInfo.amount;
             lockInfo.isLocked = false;
         } else {
@@ -406,11 +406,9 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         uint256 startTime = lockInfo.distributedTime.add(lockUpTime);
         uint256 count = 0;
 
-        // 최초로 받는 거임
         if (lockInfo.lastUnlockTimestamp == 0) {
             count = _convertMSToMonth(curBlockTime - startTime);
         } else {
-            // 현재 시간에서 분배 받을 카운트 - 이미 받은 카운트
             uint256 unLockedCount = _convertMSToMonth(curBlockTime - startTime);
             uint256 alreadyUnLockCount = lockInfo.CONST_UNLOCKCOUNT - lockInfo.remainUnLockCount;
             
@@ -419,7 +417,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         return count;
     }
     
-    function _isOverLockUpPeriodMonth(uint256 time, uint8 period) internal pure returns (bool) {
+    function _isOverLockUpPeriodMonth(uint256 time, uint256 period) internal pure returns (bool) {
         return _convertMSToMonth(time) > period;
     }
     
@@ -503,7 +501,7 @@ contract MintableToken is KIP7 {
         _totalSupply = _totalSupply.add(_amount);
 
         if(_tokenType >= 4) {
-            uint8 lockUpPeriodMonth;
+            uint256 lockUpPeriodMonth;
             uint256 unlockAmountPerCount;
             uint256 remainUnLockCount;
             uint256 CONST_UNLOCKCOUNT;
