@@ -24,6 +24,11 @@ library SafeMath {
         return a - b;
     }
 
+    function safeSub(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (b > a) return 0;
+        return a - b;
+    }
+
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
         uint256 c = a + b;
         assert(c >= a);
@@ -102,7 +107,6 @@ contract KIP7 is KIP13, IKIP7 {
         bool isLocked;
         uint8 tokenType;
         uint256 amount;
-        uint256 distributedAmount;
         uint256 distributedTime;
         uint8 lockUpPeriodMonth;
         uint256 lastUnlockTimestamp;
@@ -114,6 +118,7 @@ contract KIP7 is KIP13, IKIP7 {
     uint8 private _decimals = 18;
 
     uint256 internal _tokenCreatedTime;
+    uint256 internal _exchangeListingTime = 9999999999;
     
     mapping(address => uint256) internal _balances;
     mapping(address => mapping (address => uint256)) internal _allowances;
@@ -219,13 +224,12 @@ contract KIP7 is KIP13, IKIP7 {
         uint8 adminAccountType = _cardioWallet[sender];
         // Crowd Sale Wallet, Team & Advisors from admin wallet
         if(adminAccountType > 0) {
-            // 어드민이 보내는 물량이다.
             _addLocker(recipient, adminAccountType, amount);
         }
 
+        // Check "From" LockUp Balance
         LockInfo storage lockInfo = _lockedInfo[sender];
         if (lockInfo.isLocked) {
-            // 락업된 유저면 락업해제 시도
             _unLock(recipient);
         }
 
@@ -240,7 +244,7 @@ contract KIP7 is KIP13, IKIP7 {
         
         if(adminAcountType == 1) { // Crowd Sale
             lockUpPeriodMonth = 2;
-            unlockAmountPerCount = amount.div(100).mul(20);
+            unlockAmountPerCount = amount.div(20);
             unlockCount = 5;
         } else if(adminAcountType == 2) { // Team & Advisors
             lockUpPeriodMonth = 3;
@@ -269,35 +273,38 @@ contract KIP7 is KIP13, IKIP7 {
     function _unLock(address sender) internal {
         LockInfo storage lockInfo = _lockedInfo[sender];
 
-        // 마지막이라면 lock true로 바꿔주면 될것 같은데
         if(_isOverLockUpPeriodMonth((now - lockInfo.distributedTime), lockInfo.lockUpPeriodMonth)) {
             return;
         }
-        
-        // 지금 시간
+
+        // 만약 Type A냐?
+        // 상장 시간이 지났고, 이친구는 받지 못했냐?
+        // 그럼 일단 20% 줘라
+        // 받은 친구냐? 그럼 2개월 지났냐?
+
+
+        // 나머지 친구들
         uint256 blockTime = now;
-        // unlock 시킬 수
         uint256 count = _getUnLockCount(blockTime, lockInfo);
-        
 
-        // 아직 마지막이 아니냐?
-        // 이번에 unlock 시키는 물량
-        uint256 unlockAmount = lockInfo.amount.mul(count).mul(lockInfo.unlockAmountPerCount);
-        // 마지막달 이냐?
+        // None
+        if(count == 0) return
+        uint256 unlockAmount;
 
-
-
-
-        uint256 unlockCount = lockInfo.unlockCount - count; // 새로 추가
-        
-        if (lockInfo.amount.sub(unlockAmount) < 0 || unlockCount <= 0) {
-          unlockAmount = lockInfo.amount;
+        // Shortage due to burn token
+        // or the last distribution
+        uint256 unlockCount = lockInfo.unlockCount.safeSub(count); // 새로 추가
+				if (lockInfo.amount.safeSub(unlockAmount) == 0 || unlockCount == 0) {
+            unlockAmount = lockInfo.amount;
+            lockInfo.isLocked = false;
+        } else {
+            unlockAmount = count.mul(lockInfo.unlockAmountPerCount);
         }
         
-        // lockInfo 정보 갱신
+        // lockInfo update
         lockInfo.lastUnlockTimestamp = now;
         lockInfo.unlockCount = unlockCount;
-        lockInfo.amount = lockInfo.amount - unlockAmount;
+        lockInfo.amount = lockInfo.amount.sub(unlockAmount);
         
         _balances[sender] = _balances[sender].add(unlockAmount);
     }
@@ -305,19 +312,23 @@ contract KIP7 is KIP13, IKIP7 {
     function _getUnLockCount(uint256 curBlockTime, LockInfo lockInfo) internal pure returns (uint256) {
         // 1 Month = 30 Days 
         uint256 lockUpTime = lockInfo.lockUpPeriodMonth * 30 * 24 * 60 * 60;
+
+        // A타입은 상장 시간이여야함
         uint256 startTime = lockInfo.distributedTime.add(lockUpTime);
-        
         uint256 count = 0;
 
+        // 최초로 받는 거임
         if (lockInfo.lastUnlockTimestamp == 0) {
             count = _convertMSToMonth(curBlockTime - startTime);
         } else {
-            count = _convertMSToMonth(curBlockTime - lockInfo.lastUnlockTimestamp);
+            uint256 totalCount = _convertMSToMonth((curBlockTime - startTime));
+            uint256 unLockedCount = _convertMSToMonth(lockInfo.lastUnlockTimestamp - startTime);
+            count = totalCount - unLockedCount;
         }
         return count;
     }
     
-    function _isOverLockUpPeriodMonth(uint256 time, uint8 period) internal view returns (bool) {
+    function _isOverLockUpPeriodMonth(uint256 time, uint8 period) internal pure returns (bool) {
         return _convertMSToMonth(time) > period;
     }
     
@@ -419,7 +430,7 @@ contract MintableToken is KIP7, Ownable {
             
             if(_tokenType == 4) { // Ecosystem Activation
                 lockUpPeriodMonth = 0;
-                unlockAmountPerCount = _amount.div(20);
+                unlockAmountPerCount = _amount.div(5);
                 unlockCount = 20;
             } else if(_tokenType == 5) { // Business Development
                 lockUpPeriodMonth = 0;
