@@ -296,24 +296,25 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         uint8 adminAccountType = _cardioWallet[sender];
         // Crowd Sale Wallet, Team & Advisors from admin wallet Type 1, 2, 3
         if(adminAccountType > 0 && adminAccountType <= 3) {
-            _addLocker(recipient, adminAccountType, amount);
+            _addLocker(sender, recipient, adminAccountType, amount);
+        } else {
+            // Check "From" LockUp Balance
+            uint8 tokenType;
+            for (tokenType = 1; tokenType <= 5; tokenType++) {
+                LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
+                if (lockInfo.isLocked) {
+                    _unLock(sender, tokenType);
+                }
+            }
+            _balances[sender] = _balances[sender].sub(amount);
+            _balances[recipient] = _balances[recipient].add(amount);
         }
 
-        // Check "From" LockUp Balance
-        uint8 tokenType;
-        for (tokenType = 1; tokenType <= 5; tokenType++) {
-            LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
-            if (lockInfo.isLocked) {
-                _unLock(sender, tokenType);
-            }
-        }
-        
-        _balances[sender] = _balances[sender].sub(amount);
-        _balances[recipient] = _balances[recipient].add(amount);
+        emit Transfer(sender, recipient, amount);
     }
 
-    function _addLocker(address recipient, uint8 adminAccountType, uint256 amount) internal {
-        require(_lockedInfo[recipient][adminAccountType].isLocked == false, "Already Locked User");
+    function _addLocker(address sender, address recipient, uint8 adminAcountType, uint256 amount) internal {
+        require(_lockedInfo[recipient][adminAcountType].isLocked == false, "Already Locked User");
         
         uint256 distributedTime;
         uint256 lockUpPeriodMonth;
@@ -321,13 +322,13 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         uint256 remainUnLockCount;
         uint256 CONST_UNLOCKCOUNT;
         
-        if(adminAccountType == 1) { // Crowd Sale
+        if(adminAcountType == 1) { // Crowd Sale
             distributedTime = _exchangeListingTime;
             lockUpPeriodMonth = 2;
             unlockAmountPerCount = amount.div(20);
             remainUnLockCount = 5;
             CONST_UNLOCKCOUNT = 5;
-        } else if(adminAccountType == 2) { // Team & Advisors
+        } else if(adminAcountType == 2) { // Team & Advisors
             distributedTime = now;
             lockUpPeriodMonth = 3;
             unlockAmountPerCount = amount.div(10);
@@ -343,7 +344,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         
         LockInfo memory newLockInfo = LockInfo({
             isLocked: true,
-            tokenType : adminAccountType,
+            tokenType : adminAcountType,
             amount: amount,
             distributedTime: distributedTime,
             lockUpPeriodMonth: lockUpPeriodMonth,
@@ -353,7 +354,8 @@ contract KIP7 is KIP13, IKIP7, Ownable {
             CONST_UNLOCKCOUNT: CONST_UNLOCKCOUNT
         });
         
-        _lockedInfo[recipient][adminAccountType] = newLockInfo;
+        _balances[sender] = _balances[sender].sub(amount);
+        _lockedInfo[recipient][adminAcountType] = newLockInfo;
     }
     
     function _unLock(address sender, uint8 tokenType) internal {
