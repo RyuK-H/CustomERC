@@ -213,6 +213,10 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         return _decimals;
     }
 
+    function exchangeListingTime() public view returns (uint256) {
+        return _exchangeListingTime;
+    }
+
     function setExchangeListingTimeFinished() public view returns (bool) {
         return _setExchangeListingTimeFinished;
     }
@@ -325,7 +329,7 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         if(adminAcountType == 1) { // Crowd Sale
             distributedTime = _exchangeListingTime;
             lockUpPeriodMonth = 2;
-            unlockAmountPerCount = amount.div(20);
+            unlockAmountPerCount = amount.div(5);
             remainUnLockCount = 5;
             CONST_UNLOCKCOUNT = 5;
         } else if(adminAcountType == 2) { // Team & Advisors
@@ -365,8 +369,8 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         if(tokenType == 1 && _exchangeListingTime <= now && lockInfo.remainUnLockCount == 5) {
             // lockInfo update
             lockInfo.distributedTime = _exchangeListingTime;
-            lockInfo.lastUnlockTimestamp = now;
             lockInfo.remainUnLockCount = 4;
+            lockInfo.CONST_UNLOCKCOUNT = 4;
             lockInfo.amount = lockInfo.amount.sub(lockInfo.unlockAmountPerCount);
             
             _balances[sender] = _balances[sender].add(lockInfo.unlockAmountPerCount);
@@ -475,6 +479,10 @@ contract BurnableToken is KIP7 {
 
         lockInfo.amount = lockInfo.amount.sub(_value);
         _totalSupply = _totalSupply.sub(_value);
+
+        if(lockInfo.amount == 0) {
+            lockInfo.isLocked = false;
+        }
     
         emit BurnLockedToken(msg.sender, _value, adminAccountType);
         emit Transfer(msg.sender, address(0), _value);
@@ -513,7 +521,7 @@ contract MintableToken is KIP7 {
                 CONST_UNLOCKCOUNT = 100;
             } else if(_tokenType == 5) { // Business Development
                 lockUpPeriodMonth = 0;
-                unlockAmountPerCount = _amount.div(5);
+                unlockAmountPerCount = _amount.div(20);
                 remainUnLockCount = 20;
                 CONST_UNLOCKCOUNT = 20;
             }
@@ -547,31 +555,6 @@ contract MintableToken is KIP7 {
         _mintingFinished = true;
         emit MintFinished();
         return true;
-    }
-}
-// ----------------------------------------------------------------------------
-// @title Pausable token
-// @dev StandardToken modified with pausable transfers.
-// ----------------------------------------------------------------------------
-contract PausableToken is KIP7 {
-    function transfer(address recipient, uint256 amount) public returns (bool) {
-        return super.transfer(recipient, amount);
-    }
-
-    function approve(address spender, uint256 amount) public returns (bool) {
-        return super.approve(spender, amount);
-    }
-
-    function increaseApproval(address spender, uint amount) public returns (bool) {
-        return super.increaseApproval(spender, amount);
-    }
-
-    function decreaseApproval(address spender, uint amount) public returns (bool) {
-        return super.decreaseApproval(spender, amount);
-    }
-
-    function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
-        return super.transferFrom(sender, recipient, amount);
     }
 }
 // ----------------------------------------------------------------------------
