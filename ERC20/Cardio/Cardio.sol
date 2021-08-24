@@ -133,6 +133,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         uint256 unlockAmountPerCount;
         uint256 remainUnLockCount;
         uint256 CONST_UNLOCKCOUNT;
+        uint256 CONST_AMOUNT;
     }
     
     uint256 internal _totalSupply;
@@ -279,13 +280,13 @@ contract ERC20 is ERC165, IERC20, Ownable {
         require(recipient != address(0), "ERC20: transfer to the zero address");
 
         uint8 adminAccountType = _cardioWallet[sender];
-        // Crowd Sale Wallet, Team & Advisors from admin wallet Type 1, 2, 3
-        if(adminAccountType > 0 && adminAccountType <= 3) {
+        // Crowd Sale Wallet, Team & Advisors from admin wallet Type 1, 2
+        if(adminAccountType >= 1 && adminAccountType <= 2) {
             _addLocker(sender, recipient, adminAccountType, amount);
         } else {
             // Check "From" LockUp Balance
             uint8 tokenType;
-            for (tokenType = 1; tokenType <= 5; tokenType++) {
+            for (tokenType = 1; tokenType <= 4; tokenType++) {
                 LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
                 if (lockInfo.isLocked) {
                     _unLock(sender, tokenType);
@@ -306,25 +307,22 @@ contract ERC20 is ERC165, IERC20, Ownable {
         uint256 unlockAmountPerCount;
         uint256 remainUnLockCount;
         uint256 CONST_UNLOCKCOUNT;
+        uint256 CONST_AMOUNT;
         
         if(adminAcountType == 1) { // Crowd Sale
-            distributedTime = _exchangeListingTime;
-            lockUpPeriodMonth = 2;
-            unlockAmountPerCount = amount.div(5);
-            remainUnLockCount = 5;
-            CONST_UNLOCKCOUNT = 5;
-        } else if(adminAcountType == 2) { // Team & Advisors
             distributedTime = now;
-            lockUpPeriodMonth = 3;
-            unlockAmountPerCount = amount.div(10);
-            remainUnLockCount = 10;
-            CONST_UNLOCKCOUNT = 10;
-        } else { // Team & Advisors
+            lockUpPeriodMonth = 0;
+            unlockAmountPerCount = amount.div(100);
+            remainUnLockCount = 6;
+            CONST_UNLOCKCOUNT = 6;
+            CONST_AMOUNT = amount;
+        } else // Team & Advisors
             distributedTime = now;
-            lockUpPeriodMonth = 12;
-            unlockAmountPerCount = amount.div(10);
-            remainUnLockCount = 10;
-            CONST_UNLOCKCOUNT = 10;
+            lockUpPeriodMonth = 6;
+            unlockAmountPerCount = amount.div(20);
+            remainUnLockCount = 20;
+            CONST_UNLOCKCOUNT = 20;
+            CONST_AMOUNT = amount;
         }
         
         LockInfo memory newLockInfo = LockInfo({
@@ -336,7 +334,8 @@ contract ERC20 is ERC165, IERC20, Ownable {
             lastUnlockTimestamp: 0,
             unlockAmountPerCount: unlockAmountPerCount,
             remainUnLockCount: remainUnLockCount,
-            CONST_UNLOCKCOUNT: CONST_UNLOCKCOUNT
+            CONST_UNLOCKCOUNT: CONST_UNLOCKCOUNT,
+            CONST_AMOUNT: CONST_AMOUNT
         });
         
         _balances[sender] = _balances[sender].sub(amount);
@@ -347,14 +346,17 @@ contract ERC20 is ERC165, IERC20, Ownable {
         LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
 
         // Only Crowd Sale Type
-        if(tokenType == 1 && _exchangeListingTime <= now && lockInfo.remainUnLockCount == 5) {
+        // 864000 = 7 Days
+        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(864000) <= now) {
             // lockInfo update
-            lockInfo.distributedTime = _exchangeListingTime;
-            lockInfo.remainUnLockCount = 4;
-            lockInfo.CONST_UNLOCKCOUNT = 4;
-            lockInfo.amount = lockInfo.amount.sub(lockInfo.unlockAmountPerCount);
-            
-            _balances[sender] = _balances[sender].add(lockInfo.unlockAmountPerCount);
+            lockInfo.distributedTime = lockInfo.distributedTime.add(864000);
+            lockInfo.remainUnLockCount = 5;
+            lockInfo.CONST_UNLOCKCOUNT = 5;
+
+            // Fisrt Distribute 5%
+            uint256 distributeAmount = lockInfo.unlockAmountPerCount.mul(5)
+            lockInfo.amount = lockInfo.amount.sub(distributeAmount);
+            _balances[sender] = _balances[sender].add(distributeAmount);
         }
 
         if(_isOverLockUpPeriodMonth((now.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
@@ -366,7 +368,31 @@ contract ERC20 is ERC165, IERC20, Ownable {
 
         // None
         if(count == 0) return;
-        uint256 unlockAmount = count.mul(lockInfo.unlockAmountPerCount);
+        uint256 unlockAmount;
+        if(tokenType == 1) {
+            uint256 remainCount = lockInfo.remainUnLockCount;
+            for(uint8 i = 0; i < count; i++) {
+                if(remainCount === 5) {
+                    remainCount = remainCount - 1;
+                    unlockAmount = unlockAmount.add(lockInfo.unlockAmountPerCount.mul(10)); 
+                    continue;
+                }
+
+                if(remainCount >= 2 && remainCount <= 4) {
+                    remainCount = remainCount - 1;
+                    unlockAmount = unlockAmount.add(lockInfo.unlockAmountPerCount.mul(20)); 
+                    continue;
+                }
+
+                if(remainCount === 1) {
+                    remainCount = remainCount - 1;
+                    unlockAmount = unlockAmount.add(lockInfo.unlockAmountPerCount.mul(25)); 
+                    continue;
+                }
+            }
+        } else {
+            unlockAmount = count.mul(lockInfo.unlockAmountPerCount);
+        }
 
         // Shortage due to burn token
         // or the last distribution
@@ -478,6 +504,9 @@ contract MintableToken is ERC20 {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
 
+    uint256 ECOSYSTEM_AMOUNT = 7300000000 * (10**18)
+    uint256 BUSINESS_AMOUNT = 1150000000 * (10**18)
+
     bool private _mintingFinished = false;
 
     modifier canMint() { require(!_mintingFinished); _; }
@@ -489,22 +518,22 @@ contract MintableToken is ERC20 {
     function mint(address _to, uint256 _amount, uint8 _tokenType) onlyOwner canMint public returns (bool) {
         _totalSupply = _totalSupply.add(_amount);
 
-        if(_tokenType >= 4) {
+        if(_tokenType >= 3) {
             uint256 lockUpPeriodMonth;
             uint256 unlockAmountPerCount;
             uint256 remainUnLockCount;
             uint256 CONST_UNLOCKCOUNT;
             
-            if(_tokenType == 4) { // Ecosystem Activation
+            if(_tokenType == 3) { // Ecosystem Activation
                 lockUpPeriodMonth = 0;
-                unlockAmountPerCount = _amount.div(100);
-                remainUnLockCount = 100;
-                CONST_UNLOCKCOUNT = 100;
-            } else if(_tokenType == 5) { // Business Development
+                unlockAmountPerCount = ECOSYSTEM_AMOUNT.div(100);
+                remainUnLockCount = 99;
+                CONST_UNLOCKCOUNT = 99;
+            } else if(_tokenType == 4) { // Business Development
                 lockUpPeriodMonth = 0;
-                unlockAmountPerCount = _amount.div(20);
-                remainUnLockCount = 20;
-                CONST_UNLOCKCOUNT = 20;
+                unlockAmountPerCount = BUSINESS_AMOUNT.div(100);
+                remainUnLockCount = 85;
+                CONST_UNLOCKCOUNT = 85;
             }
             
             LockInfo memory newLockInfo = LockInfo({

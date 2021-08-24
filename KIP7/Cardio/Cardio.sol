@@ -174,14 +174,12 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
         _cardioWallet[0xAb388B7E9bB7C9DB8858DbACACCC667d4Cf5D390] = 1;
-        // Team & Advisors A
+        // Team & Advisors
         _cardioWallet[0x5Ea976A033aE4473faA7beaAe4A9CCFFD6075FCc] = 2;
-        // Team & Advisors B
-        _cardioWallet[0x9Cd9A5fad80707005a3835bEc9F68A892e256108] = 3;
         // Ecosystem Activation
-        _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 4;
+        _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 3;
         // Business Development
-        _cardioWallet[0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24] = 5;
+        _cardioWallet[0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24] = 4;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -298,13 +296,13 @@ contract KIP7 is KIP13, IKIP7, Ownable {
         require(recipient != address(0), "KIP7: transfer to the zero address");
 
         uint8 adminAccountType = _cardioWallet[sender];
-        // Crowd Sale Wallet, Team & Advisors from admin wallet Type 1, 2, 3
-        if(adminAccountType > 0 && adminAccountType <= 3) {
+        // Crowd Sale Wallet, Team & Advisors from admin wallet Type 1, 2
+        if(adminAccountType > 0 && adminAccountType <= 2) {
             _addLocker(sender, recipient, adminAccountType, amount);
         } else {
             // Check "From" LockUp Balance
             uint8 tokenType;
-            for (tokenType = 1; tokenType <= 5; tokenType++) {
+            for (tokenType = 1; tokenType <= 4; tokenType++) {
                 LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
                 if (lockInfo.isLocked) {
                     _unLock(sender, tokenType);
