@@ -75,8 +75,8 @@ contract ERC165 is IERC165 {
     }
 }
 
-contract IERC721Receiver {
-    function onERC721Received(address _operator, address _from, uint256 _amount, bytes memory _data) public returns (bytes4);
+contract IERC20Receiver {
+    function onERC20Received(address _operator, address _from, uint256 _amount, bytes memory _data) public returns (bytes4);
 }
 // ----------------------------------------------------------------------------
 // @title Ownable
@@ -316,7 +316,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
             remainUnLockCount = 6;
             CONST_UNLOCKCOUNT = 6;
             CONST_AMOUNT = amount;
-        } else // Team & Advisors
+        } else { // Team & Advisors
             distributedTime = now;
             lockUpPeriodMonth = 6;
             unlockAmountPerCount = amount.div(20);
@@ -354,7 +354,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
             lockInfo.CONST_UNLOCKCOUNT = 5;
 
             // Fisrt Distribute 5%
-            uint256 distributeAmount = lockInfo.unlockAmountPerCount.mul(5)
+            uint256 distributeAmount = lockInfo.unlockAmountPerCount.mul(5);
             lockInfo.amount = lockInfo.amount.sub(distributeAmount);
             _balances[sender] = _balances[sender].add(distributeAmount);
         }
@@ -372,7 +372,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         if(tokenType == 1) {
             uint256 remainCount = lockInfo.remainUnLockCount;
             for(uint8 i = 0; i < count; i++) {
-                if(remainCount === 5) {
+                if(remainCount == 5) {
                     remainCount = remainCount - 1;
                     unlockAmount = unlockAmount.add(lockInfo.unlockAmountPerCount.mul(10)); 
                     continue;
@@ -384,7 +384,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
                     continue;
                 }
 
-                if(remainCount === 1) {
+                if(remainCount == 1) {
                     remainCount = remainCount - 1;
                     unlockAmount = unlockAmount.add(lockInfo.unlockAmountPerCount.mul(25)); 
                     continue;
@@ -504,8 +504,8 @@ contract MintableToken is ERC20 {
     event Mint(address indexed to, uint256 amount);
     event MintFinished();
 
-    uint256 ECOSYSTEM_AMOUNT = 7300000000 * (10**18)
-    uint256 BUSINESS_AMOUNT = 1150000000 * (10**18)
+    uint256 ECOSYSTEM_AMOUNT = 7300000000 * (10**18);
+    uint256 BUSINESS_AMOUNT = 1150000000 * (10**18);
 
     bool private _mintingFinished = false;
 
@@ -523,17 +523,20 @@ contract MintableToken is ERC20 {
             uint256 unlockAmountPerCount;
             uint256 remainUnLockCount;
             uint256 CONST_UNLOCKCOUNT;
+            uint256 CONST_AMOUNT;
             
             if(_tokenType == 3) { // Ecosystem Activation
                 lockUpPeriodMonth = 0;
                 unlockAmountPerCount = ECOSYSTEM_AMOUNT.div(100);
                 remainUnLockCount = 99;
                 CONST_UNLOCKCOUNT = 99;
+                CONST_AMOUNT = ECOSYSTEM_AMOUNT;
             } else if(_tokenType == 4) { // Business Development
                 lockUpPeriodMonth = 0;
                 unlockAmountPerCount = BUSINESS_AMOUNT.div(100);
                 remainUnLockCount = 85;
                 CONST_UNLOCKCOUNT = 85;
+                CONST_AMOUNT = BUSINESS_AMOUNT;
             }
             
             LockInfo memory newLockInfo = LockInfo({
@@ -545,7 +548,8 @@ contract MintableToken is ERC20 {
                 lastUnlockTimestamp: 0,
                 unlockAmountPerCount: unlockAmountPerCount,
                 remainUnLockCount: remainUnLockCount,
-                CONST_UNLOCKCOUNT: CONST_UNLOCKCOUNT
+                CONST_UNLOCKCOUNT: CONST_UNLOCKCOUNT,
+                CONST_AMOUNT: CONST_AMOUNT
             });
             
             _lockedInfo[_to][_tokenType] = newLockInfo;
