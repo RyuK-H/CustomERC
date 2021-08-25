@@ -150,6 +150,12 @@ contract ERC20 is ERC165, IERC20, Ownable {
     bytes4 private constant _ERC20_RECEIVED = 0x9d188c22;
     bytes4 private constant _INTERFACE_ID_ERC20 = 0x65787371;
 
+    uint256 public timeTest;
+
+    function setTimeTest(uint256 zz) public {
+      timeTest = zz;
+    }
+
     constructor() public {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
@@ -325,10 +331,11 @@ contract ERC20 is ERC165, IERC20, Ownable {
 
         // Only Crowd Sale Type
         // 864000 = 7 Days
-        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(864000) <= now) {
+        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(864000) <= timeTest) {
             // lockInfo update
             lockInfo.distributedTime = lockInfo.distributedTime.add(864000);
             lockInfo.remainUnLockCount = 5;
+            lockInfo.CONST_UNLOCKCOUNT = 5;
 
             // Fisrt Distribute 5%
             uint256 distributeAmount = lockInfo.unlockAmountPerCount.mul(5);
@@ -336,11 +343,11 @@ contract ERC20 is ERC165, IERC20, Ownable {
             _balances[sender] = _balances[sender].add(distributeAmount);
         }
 
-        if(_isOverLockUpPeriodMonth((now.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
+        if(_isOverLockUpPeriodMonth((timeTest.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
             return;
         }
 
-        uint256 blockTime = now;
+        uint256 blockTime = timeTest;
         uint256 count = _getUnLockCount(blockTime, lockInfo);
 
         // None
@@ -380,7 +387,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         }
         
         // lockInfo update
-        lockInfo.lastUnlockTimestamp = now;
+        lockInfo.lastUnlockTimestamp = timeTest;
         lockInfo.remainUnLockCount = remainUnLockCount;
         lockInfo.amount = lockInfo.amount.sub(unlockAmount);
         
