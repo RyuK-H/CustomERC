@@ -140,8 +140,6 @@ contract ERC20 is ERC165, IERC20, Ownable {
     uint8 private _decimals = 18;
 
     uint256 internal _tokenCreatedTime;
-    uint256 internal _exchangeListingTime = 9999999999;
-    bool private _setExchangeListingTimeFinished = false;
     
     mapping(address => uint256) internal _balances;
     mapping(address => mapping (address => uint256)) internal _allowances;
@@ -152,18 +150,16 @@ contract ERC20 is ERC165, IERC20, Ownable {
     bytes4 private constant _ERC20_RECEIVED = 0x9d188c22;
     bytes4 private constant _INTERFACE_ID_ERC20 = 0x65787371;
 
-    modifier canSetExchangeListingTime() { require(!_setExchangeListingTimeFinished); _; }
-
     constructor() public {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
-        _cardioWallet[0xAb388B7E9bB7C9DB8858DbACACCC667d4Cf5D390] = 1;
+        _cardioWallet[0x019a4d2befeef782ac5bd01cd3bf7c8eb6146588] = 1;
         // Team & Advisors
-        _cardioWallet[0x5Ea976A033aE4473faA7beaAe4A9CCFFD6075FCc] = 2;
+        _cardioWallet[0x6e4e3dcd3a7bcbdbd2726611a557c50ae62917d7] = 2;
         // Ecosystem Activation
-        _cardioWallet[0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9] = 4;
+        _cardioWallet[0x2c9e98ba59077f656e0a1bfa75bca8c01d743034] = 3;
         // Business Development
-        _cardioWallet[0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24] = 5;
+        _cardioWallet[0x9f9de20186368f450e6183ebdcc3f794af3a0578] = 4;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -193,24 +189,6 @@ contract ERC20 is ERC165, IERC20, Ownable {
 
     function decimals() public view returns (uint8) {
         return _decimals;
-    }
-
-    function exchangeListingTime() public view returns (uint256) {
-        return _exchangeListingTime;
-    }
-
-    function setExchangeListingTimeFinished() public view returns (bool) {
-        return _setExchangeListingTimeFinished;
-    }
-
-    function setExchangeListingTime(uint256 listingTime) onlyOwner canSetExchangeListingTime public {
-        emit ChangeListingTime(_exchangeListingTime, listingTime);
-        _exchangeListingTime = listingTime;
-    }
-
-    function finishSetExchangeListingTime() onlyOwner canSetExchangeListingTime public {
-        _setExchangeListingTimeFinished = true;
-        emit FinshedSetExchangeListingTime();
     }
 
     function transfer(address recipient, uint256 amount) public returns (bool) {
@@ -459,9 +437,8 @@ contract BurnableToken is ERC20 {
     event BurnLockedToken(address indexed burner, uint256 value, uint8 tokenType);
 
     modifier onlyCardioWallet() {
-      require(msg.sender == 0x9Cd9A5fad80707005a3835bEc9F68A892e256108
-      || msg.sender == 0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9
-      || msg.sender == 0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24
+      require(msg.sender == 0x2c9e98ba59077f656e0a1bfa75bca8c01d743034
+      || msg.sender == 0x9f9de20186368f450e6183ebdcc3f794af3a0578
     ); _; }
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
@@ -474,12 +451,10 @@ contract BurnableToken is ERC20 {
         emit Transfer(msg.sender, address(0), _value);
     }
 
-    // Team & Advisors B - 3
-    // 0x9Cd9A5fad80707005a3835bEc9F68A892e256108
-    // Ecosystem Activation - 4
-    // 0x596C53c1d24F1BA7F7Fb38c2676F7673378150c9
-    // Business Development - 5
-    // 0x3F6B9a3b0682E3A8Cda81eeE78d4E9D53E4FbC24
+    // Ecosystem Activation - 3
+    // 0x2c9e98ba59077f656e0a1bfa75bca8c01d743034
+    // Business Development - 4
+    // 0x9f9de20186368f450e6183ebdcc3f794af3a0578
     function burnTypeToken(uint256 _value) onlyCardioWallet public {
         uint8 adminAccountType = _cardioWallet[msg.sender];
         LockInfo storage lockInfo = _lockedInfo[msg.sender][adminAccountType];
