@@ -153,13 +153,13 @@ contract ERC20 is ERC165, IERC20, Ownable {
     constructor() public {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
-        _cardioWallet[0x019a4d2befeef782ac5bd01cd3bf7c8eb6146588] = 1;
+        _cardioWallet[0x9FC9675d6d1d2E583EbC6fdF7b30F1d1144523Cd] = 1;
         // Team & Advisors
-        _cardioWallet[0x6e4e3dcd3a7bcbdbd2726611a557c50ae62917d7] = 2;
+        _cardioWallet[0xe39c6A20A55e6f88aF1B331F0E8529dcD4A02c10] = 2;
         // Ecosystem Activation
-        _cardioWallet[0x2c9e98ba59077f656e0a1bfa75bca8c01d743034] = 3;
+        _cardioWallet[0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68] = 3;
         // Business Development
-        _cardioWallet[0x9f9de20186368f450e6183ebdcc3f794af3a0578] = 4;
+        _cardioWallet[0x461030be06272623f7135ba9926Ea9Afba00d8E3] = 4;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -436,8 +436,8 @@ contract BurnableToken is ERC20 {
     event BurnLockedToken(address indexed burner, uint256 value, uint8 tokenType);
 
     modifier onlyCardioWallet() {
-      require(msg.sender == 0x2c9e98ba59077f656e0a1bfa75bca8c01d743034
-      || msg.sender == 0x9f9de20186368f450e6183ebdcc3f794af3a0578
+      require(msg.sender == 0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68
+      || msg.sender == 0x461030be06272623f7135ba9926Ea9Afba00d8E3
     ); _; }
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
@@ -451,9 +451,9 @@ contract BurnableToken is ERC20 {
     }
 
     // Ecosystem Activation - 3
-    // 0x2c9e98ba59077f656e0a1bfa75bca8c01d743034
+    // 0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68
     // Business Development - 4
-    // 0x9f9de20186368f450e6183ebdcc3f794af3a0578
+    // 0x461030be06272623f7135ba9926Ea9Afba00d8E3
     function burnTypeToken(uint256 _value) onlyCardioWallet public {
         uint8 adminAccountType = _cardioWallet[msg.sender];
         LockInfo storage lockInfo = _lockedInfo[msg.sender][adminAccountType];

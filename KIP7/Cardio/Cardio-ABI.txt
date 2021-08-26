@@ -137,17 +137,7 @@
 			{
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "totalSupply",
-		"outputs": [
+			},
 			{
 				"name": "",
 				"type": "uint256"
@@ -160,7 +150,7 @@
 	{
 		"constant": true,
 		"inputs": [],
-		"name": "exchangeListingTime",
+		"name": "totalSupply",
 		"outputs": [
 			{
 				"name": "",
@@ -284,20 +274,6 @@
 		"constant": false,
 		"inputs": [
 			{
-				"name": "listingTime",
-				"type": "uint256"
-			}
-		],
-		"name": "setExchangeListingTime",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
 				"name": "_to",
 				"type": "address"
 			},
@@ -403,15 +379,6 @@
 		],
 		"payable": false,
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [],
-		"name": "finishSetExchangeListingTime",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -535,20 +502,6 @@
 		"outputs": [],
 		"payable": false,
 		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": true,
-		"inputs": [],
-		"name": "setExchangeListingTimeFinished",
-		"outputs": [
-			{
-				"name": "",
-				"type": "bool"
-			}
-		],
-		"payable": false,
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
