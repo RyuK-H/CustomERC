@@ -148,8 +148,6 @@ contract ERC20 is ERC165, IERC20, Ownable {
         _cardioWallet[0xe39c6A20A55e6f88aF1B331F0E8529dcD4A02c10] = 2;
         // Ecosystem Activation
         _cardioWallet[0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68] = 3;
-        // Business Development
-        _cardioWallet[0x461030be06272623f7135ba9926Ea9Afba00d8E3] = 4;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -160,7 +158,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         uint256 totalBalances = _balances[account];
         uint8 tokenType;
 
-        for (tokenType = 1; tokenType <= 4; tokenType++) {
+        for (tokenType = 1; tokenType <= 3; tokenType++) {
             LockInfo memory lockInfo = _lockedInfo[account][tokenType];
             totalBalances = totalBalances.add(lockInfo.amount);
         }
@@ -254,7 +252,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         } else {
             // Check "From" LockUp Balance
             uint8 tokenType;
-            for (tokenType = 1; tokenType <= 4; tokenType++) {
+            for (tokenType = 1; tokenType <= 3; tokenType++) {
                 LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
                 if (lockInfo.isLocked) {
                     _unLock(sender, tokenType);
@@ -286,7 +284,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
             CONST_AMOUNT = amount;
         } else { // Team & Advisors
             distributedTime = now;
-            lockUpPeriodMonth = 6;
+            lockUpPeriodMonth = 5;
             unlockAmountPerCount = amount.div(20);
             remainUnLockCount = 20;
             CONST_UNLOCKCOUNT = 20;
@@ -442,8 +440,6 @@ contract BurnableToken is ERC20 {
 
     // Ecosystem Activation - 3
     // 0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68
-    // Business Development - 4
-    // 0x461030be06272623f7135ba9926Ea9Afba00d8E3
     function burnTypeToken(uint256 _value) onlyCardioWallet public {
         uint8 adminAccountType = _cardioWallet[msg.sender];
         LockInfo storage lockInfo = _lockedInfo[msg.sender][adminAccountType];
@@ -469,8 +465,6 @@ contract MintableToken is ERC20 {
     event MintFinished();
 
     uint256 ECOSYSTEM_AMOUNT = 7300000000 * (10**18);
-    uint256 BUSINESS_AMOUNT = 1150000000 * (10**18);
-
     bool private _mintingFinished = false;
 
     modifier canMint() { require(!_mintingFinished); _; }
@@ -483,26 +477,19 @@ contract MintableToken is ERC20 {
         require(_tokenType < 5, "Token Type NULL");
         _totalSupply = _totalSupply.add(_amount);
 
-        if(_tokenType >= 3) {
+        // Ecosystem Activation
+        if(_tokenType == 3) {
             uint256 lockUpPeriodMonth;
             uint256 unlockAmountPerCount;
             uint256 remainUnLockCount;
             uint256 CONST_UNLOCKCOUNT;
             uint256 CONST_AMOUNT;
             
-            if(_tokenType == 3) { // Ecosystem Activation
-                lockUpPeriodMonth = 0;
-                unlockAmountPerCount = ECOSYSTEM_AMOUNT.div(100);
-                remainUnLockCount = 99;
-                CONST_UNLOCKCOUNT = 99;
-                CONST_AMOUNT = ECOSYSTEM_AMOUNT;
-            } else if(_tokenType == 4) { // Business Development
-                lockUpPeriodMonth = 0;
-                unlockAmountPerCount = BUSINESS_AMOUNT.div(100);
-                remainUnLockCount = 85;
-                CONST_UNLOCKCOUNT = 85;
-                CONST_AMOUNT = BUSINESS_AMOUNT;
-            }
+            lockUpPeriodMonth = 0;
+            unlockAmountPerCount = ECOSYSTEM_AMOUNT.div(100);
+            remainUnLockCount = 99;
+            CONST_UNLOCKCOUNT = 99;
+            CONST_AMOUNT = ECOSYSTEM_AMOUNT;
             
             LockInfo memory newLockInfo = LockInfo({
                 isLocked: true,
