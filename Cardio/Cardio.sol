@@ -143,11 +143,11 @@ contract ERC20 is ERC165, IERC20, Ownable {
     constructor() public {
         _tokenCreatedTime = now;
         // Crowd Sale Wallet
-        _cardioWallet[0x9FC9675d6d1d2E583EbC6fdF7b30F1d1144523Cd] = 1;
+        _cardioWallet[0xA8588b72Fdc52E2B8d4A8C890eD86ecB88F35024] = 1;
         // Team & Advisors
-        _cardioWallet[0xe39c6A20A55e6f88aF1B331F0E8529dcD4A02c10] = 2;
+        _cardioWallet[0x60185a4f96dBA2354B2B0cfF1239AC6C6e6567df] = 2;
         // Ecosystem Activation
-        _cardioWallet[0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68] = 3;
+        _cardioWallet[0xa776d53b1E7450800eF111F6f5274f7FC221c2E7] = 3;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -312,10 +312,10 @@ contract ERC20 is ERC165, IERC20, Ownable {
         LockInfo storage lockInfo = _lockedInfo[sender][tokenType];
 
         // Only Crowd Sale Type
-        // 864000 = 10 Days
-        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(864000) <= now) {
+        // 259200 = 3 Days
+        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(259200) <= now) {
             // lockInfo update
-            lockInfo.distributedTime = lockInfo.distributedTime.add(864000);
+            lockInfo.distributedTime = lockInfo.distributedTime.add(259200);
             lockInfo.remainUnLockCount = 5;
 
             // Fisrt Distribute 5%
@@ -424,9 +424,8 @@ contract BurnableToken is ERC20 {
     event BurnLockedToken(address indexed burner, uint256 value, uint8 tokenType);
 
     modifier onlyCardioWallet() {
-      require(msg.sender == 0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68
-      || msg.sender == 0x461030be06272623f7135ba9926Ea9Afba00d8E3
-    ); _; }
+      require(msg.sender == 0xa776d53b1E7450800eF111F6f5274f7FC221c2E7); _;
+    }
 
     function burnAdminAmount(uint256 _value) onlyOwner public {
         require(_value <= _balances[msg.sender]);
@@ -439,7 +438,7 @@ contract BurnableToken is ERC20 {
     }
 
     // Ecosystem Activation - 3
-    // 0x588eaB2Fd73e381efFA8E4F084bF5a686eC9eD68
+    // 0xa776d53b1E7450800eF111F6f5274f7FC221c2E7
     function burnTypeToken(uint256 _value) onlyCardioWallet public {
         uint8 adminAccountType = _cardioWallet[msg.sender];
         LockInfo storage lockInfo = _lockedInfo[msg.sender][adminAccountType];
@@ -473,6 +472,10 @@ contract MintableToken is ERC20 {
         return _mintingFinished;
     }
 
+    // Token Type - 1 : Crowd Sale
+    // Token Type - 2 : Team & Advisors
+    // Token Type - 3 : Ecosystem Activation
+    // Token Type - 4 : Business Development
     function mint(address _to, uint256 _amount, uint8 _tokenType) onlyOwner canMint public returns (bool) {
         require(_tokenType < 5, "Token Type NULL");
         _totalSupply = _totalSupply.add(_amount);
