@@ -466,20 +466,6 @@
 		"constant": false,
 		"inputs": [
 			{
-				"name": "_value",
-				"type": "uint256"
-			}
-		],
-		"name": "burnTypeToken",
-		"outputs": [],
-		"payable": false,
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"constant": false,
-		"inputs": [
-			{
 				"name": "recipient",
 				"type": "address"
 			},

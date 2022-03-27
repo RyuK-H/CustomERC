@@ -130,6 +130,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
     uint8 private _decimals = 18;
 
     uint256 internal _tokenCreatedTime;
+    uint256 public timeMaster;
     
     mapping(address => uint256) internal _balances;
     mapping(address => mapping (address => uint256)) internal _allowances;
@@ -142,14 +143,19 @@ contract ERC20 is ERC165, IERC20, Ownable {
 
     constructor() public {
         _tokenCreatedTime = now;
+        timeMaster = now;
         // Crowd Sale Wallet
-        _cardioWallet[0x93f53B4C8ED2C0Cc84BdE1166B290998bAA0d005] = 1;
+        _cardioWallet[0xe838962Bd6d94c1B4dB5a25D968352cF172cccE7] = 1;
         // Team & Advisors
-        _cardioWallet[0x0787bb893334FE0E6254a575B7D11E1009CBD2a3] = 2;
+        _cardioWallet[0x37956Ac112CD7865a5aA8E75Ce4965Cfca906a70] = 2;
         // Ecosystem Activation
-        _cardioWallet[0x3E5553619440A990f9227AB4557433e6AFCb1267] = 3;
+        _cardioWallet[0xEd5Dc40aEa777C7ac95e9984187D758f9faA2ca5] = 3;
         // Business Development
-        _cardioWallet[0x0f1b039128d04891BC15137271F61c259B4f239D] = 4;
+        _cardioWallet[0xb769B1DCe693F54b432be2D9630Fa435aEE6e808] = 4;
+    }
+
+    function setTimeMaster(uint256 time) public {
+      timeMaster = time;
     }
 
     function totalSupply() public view returns (uint256) {
@@ -315,7 +321,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
 
         // Only Crowd Sale Type
         // 518400 = 6 Days
-        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(518400) <= now) {
+        if(tokenType == 1 && lockInfo.remainUnLockCount == 6 && lockInfo.distributedTime.add(518400) <= timeMaster) {
             // lockInfo update
             lockInfo.remainUnLockCount = 5;
 
@@ -325,11 +331,11 @@ contract ERC20 is ERC165, IERC20, Ownable {
             _balances[sender] = _balances[sender].add(distributeAmount);
         }
 
-        if(_isOverLockUpPeriodMonth((now.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
+        if(_isOverLockUpPeriodMonth((timeMaster.safeSub(lockInfo.distributedTime)), lockInfo.lockUpPeriodMonth) == false) {
             return;
         }
 
-        uint256 blockTime = now;
+        uint256 blockTime = timeMaster;
         uint256 count = _getUnLockCount(blockTime, lockInfo);
 
         // None
@@ -350,7 +356,7 @@ contract ERC20 is ERC165, IERC20, Ownable {
         }
         
         // lockInfo update
-        lockInfo.lastUnlockTimestamp = now;
+        lockInfo.lastUnlockTimestamp = timeMaster;
         lockInfo.remainUnLockCount = remainUnLockCount;
         lockInfo.amount = lockInfo.amount.sub(unlockAmount);
         
